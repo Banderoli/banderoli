@@ -1,44 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import { prisma } from '@/lib/prisma'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'parcelge-secret-key-change-in-production'
+const attempts = new Map<string, { count: number; resetAt: number }>()
+
+function rateLimit(ip: string): boolean {
+  const now = Date.now()
+  const record = attempts.get(ip)
+
+  if (!record || now > record.resetAt) {
+    attempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 })
+    return true
+  }
+
+  if (record.count >= 5) return false
+
+  record.count++
+  return true
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json()
+    const ip = req.headers.get('x-forwarded-for') || 'unknown'
 
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email и пароль обязательны' }, { status: 400 })
+    if (!rateLimit(ip)) {
+      return NextResponse.json(
+        { error: 'Слишком много попыток. Подождите 15 минут.' },
+        { status: 429 }
+      )
     }
 
-    const user = await prisma.user.findUnique({ where: { email } })
-    if (!user) {
-      return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 })
+    const { email, password, name } = await req.json()
+
+    if (!email || !password || !name) {
+      return NextResponse.json(
+        { error: 'Все поля обязательны' },
+        { status: 400 }
+      )
     }
 
-    // СРАВНИВАЕМ ПАРОЛИ: bcrypt сам поймет, совпадает ли текст с хэшем
-    const isPasswordValid = await bcrypt.compare(password, user.password)
-    
-    if (!isPasswordValid) {
-      return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 })
+    if (password.length < 8) {
+      return NextResponse.json(
+        { error: 'Пароль должен быть минимум 8 символов' },
+        { status: 400 }
+      )
     }
 
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' })
-    const response = NextResponse.json({ success: true })
-    
-    response.cookies.set({
-      name: 'token',
-      value: token,
-      httpOnly: true,
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7 
+    const existing = await prisma.user.findUnique({ where: { email } })
+    if (existing) {
+      return NextResponse.json(
+        { error: 'Пользователь уже существует' },
+        { status: 400 }
+      )
+    }
+
+    const hashed = await bcrypt.hash(password, 10)
+    const user = await prisma.user.create({
+      data: { email, password: hashed, name },
     })
 
-    return response
+    return NextResponse.json({ success: true, userId: user.id })
   } catch (error) {
-    console.error('Ошибка при логине:', error)
+    console.error(error)
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
   }
 }
