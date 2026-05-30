@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // Прямое подключение для миграций
+}
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  password         String
+  name             String
+  phone            String?
+  idDocument       String?
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+  parcels          Parcel[]
+  partners         Partner[]
+  carriers         Carrier[] 
+}
+
+model Carrier {
+  id        String   @id @default(cuid())
+  name      String   
+  website   String?  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Partner {
+  id         String   @id @default(cuid())
+  name       String
+  phone      String?
+  idDocument String?
+  slotNumber Int?     
+  isActive   Boolean  @default(false)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) 
+  updatedAt  DateTime @updatedAt      
+}
+
+model Parcel {
+  id           String    @id @default(cuid())
+  trackCode    String
+  name         String
+  value        Float
+  carrier      String    
+  expectedDate DateTime?
+  purchaseDate DateTime?
+  recipient    String
+  comment      String?
+  status       String    @default("ожидается")
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Alert {
+  id          String   @id @default(cuid())
+  type        String   
+  message     String   
+  severity    String   
+  relatedHub  String?  
+  isResolved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
