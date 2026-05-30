@@ -1,50 +1,93 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import jwt from 'jsonwebtoken'
+import { jwtVerify } from 'jose'
+import { cookies } from 'next/headers'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'banderoli-secret-key-change-in-production'
+async function getUserId() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('token')?.value;
+  if (!token) return null;
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'parcelge-secret-key');
+    const { payload } = await jwtVerify(token, secret);
+    return payload.userId as string;
+  } catch {
+    return null;
+  }
+}
 
+// GET: Получить всех партнеров пользователя
 export async function GET(req: NextRequest) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string }
-    
-    const partners = await prisma.partner.findMany({ 
-      where: { userId: decoded.userId },
-      orderBy: { createdAt: 'asc' }
-    })
-    return NextResponse.json({ partners })
+    const userId = await getUserId();
+    if (!userId) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
+
+    // Достаем имя самого пользователя (Владельца) и его партнеров
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { partners: true } // Prisma автоматически подтянет всех партнеров
+    });
+
+    if (!user) return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 });
+
+    return NextResponse.json({ 
+      ownerName: user.name, 
+      partners: user.partners 
+    });
   } catch (error) {
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
+    console.error('Ошибка GET /api/partners:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
 
+// POST: Добавить нового партнера
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string }
-    const { name, phone, idDocument } = await req.json()
+    const userId = await getUserId();
+    if (!userId) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
 
-    if (!name) return NextResponse.json({ error: 'Имя обязательно' }, { status: 400 })
+    const data = await req.json();
 
-    const newPartner = await prisma.partner.create({
-      data: { name, phone, idDocument, isActive: true, userId: decoded.userId }
-    })
-    return NextResponse.json({ success: true, partner: newPartner })
+    if (!data.name) {
+      return NextResponse.json({ error: 'Имя партнера обязательно' }, { status: 400 });
+    }
+
+    const partner = await prisma.partner.create({
+      data: {
+        name: data.name,
+        phone: data.phone || null,
+        idDocument: data.idDocument || null,
+        isActive: true, // Делаем партнера активным по умолчанию
+        userId: userId
+      }
+    });
+
+    return NextResponse.json({ success: true, partner });
   } catch (error) {
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
+    console.error('Ошибка POST /api/partners:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
 
-// DELETE теперь обрабатывается здесь же или через динамический роут
+// DELETE: Удалить партнера
 export async function DELETE(req: NextRequest) {
   try {
-    const { id } = await req.json()
-    await prisma.partner.delete({ where: { id } })
-    return NextResponse.json({ success: true })
+    const userId = await getUserId();
+    if (!userId) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
+
+    const { id } = await req.json();
+
+    // Защита: проверяем, что партнер принадлежит именно этому пользователю
+    const partner = await prisma.partner.findUnique({ where: { id } });
+    if (!partner || partner.userId !== userId) {
+      return NextResponse.json({ error: 'Партнер не найден или нет прав' }, { status: 403 });
+    }
+
+    await prisma.partner.delete({ where: { id } });
+
+    return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Ошибка удаления' }, { status: 500 })
+    console.error('Ошибка DELETE /api/partners:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }

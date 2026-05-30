@@ -1,3 +1,4 @@
+// 1. Настройки генератора и базы данных остаются без изменений
 generator client {
   provider = "prisma-client-js"
 }
@@ -5,7 +6,20 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // Прямое подключение для миграций
+  directUrl = env("DIRECT_URL")
+}
+
+// 2. Создаем строгие перечисления для статусов
+enum ParcelStatus {
+  EXPECTED    // ожидается
+  IN_TRANSIT  // в пути
+  DELIVERED   // доставлено
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  ERROR
 }
 
 model User {
@@ -18,7 +32,8 @@ model User {
   resetToken       String?
   resetTokenExpiry DateTime?
   createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @default(now()) @updatedAt
+  updatedAt        DateTime  @updatedAt 
+  
   parcels          Parcel[]
   partners         Partner[]
   carriers         Carrier[] 
@@ -31,6 +46,8 @@ model Carrier {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+  
+  // ИСПРАВЛЕНО: Связь parcels Parcel[] удалена, так как в Parcel мы используем просто строку (carrier String)
 }
 
 model Partner {
@@ -48,15 +65,15 @@ model Partner {
 
 model Parcel {
   id           String    @id @default(cuid())
-  trackCode    String
+  trackCode    String    @unique
   name         String
   value        Float
-  carrier      String    
+  carrier      String    // Оставлено просто как строка
   expectedDate DateTime?
   purchaseDate DateTime?
   recipient    String
   comment      String?
-  status       String    @default("ожидается")
+  status       String    @default("ожидается") // Оставлено текстом для совместимости с фронтендом
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt    DateTime  @default(now())
@@ -64,11 +81,11 @@ model Parcel {
 }
 
 model Alert {
-  id          String   @id @default(cuid())
-  type        String   
-  message     String   
-  severity    String   
-  relatedHub  String?  
-  isResolved  Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id         String         @id @default(cuid())
+  type       String   
+  message    String   
+  severity   AlertSeverity  @default(INFO) 
+  relatedHub String?  
+  isResolved Boolean        @default(false)
+  createdAt  DateTime       @default(now())
 }

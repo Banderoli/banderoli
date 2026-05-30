@@ -71,7 +71,8 @@ export default function ArchivePage() {
                   </span>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-lg text-gray-600">{p.value} ₾</p>
+                  {/* ИСПРАВЛЕНИЕ: Форматирование цены до 2 знаков */}
+                  <p className="font-bold text-lg text-gray-600">{Number(p.value).toFixed(2)} ₾</p>
                 </div>
               </div>
 

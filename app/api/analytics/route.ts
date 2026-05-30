@@ -1,61 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import jwt from 'jsonwebtoken'
+import { jwtVerify } from 'jose'
+import { cookies } from 'next/headers'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'banderoli-secret-key-change-in-production'
+async function getUserId() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('token')?.value;
+  if (!token) return null;
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'parcelge-secret-key');
+    const { payload } = await jwtVerify(token, secret);
+    return payload.userId as string;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
-    
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string }
-    
-    // Получаем все посылки пользователя
-    const parcels = await prisma.parcel.findMany({ 
-      where: { userId: decoded.userId },
+    const userId = await getUserId();
+    if (!userId) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
+
+    const parcels = await prisma.parcel.findMany({
+      where: { userId },
       orderBy: { createdAt: 'asc' }
-    })
-    
-    // 1. Считаем расходы по месяцам (для линейного графика)
-    const monthlyDataMap: Record<string, number> = {}
+    });
+
+    const totalParcels = parcels.length;
+    const deliveredCount = parcels.filter(p => p.status === 'доставлено').length;
+    const lostCount = parcels.filter(p => p.status === 'утеряно').length;
+
+    // ИСПРАВЛЕНИЕ: Добавляем EPSILON при каждом сложении тетри
+    let totalCents = 0;
+    parcels.forEach(p => { 
+      totalCents += Math.round(((Number(p.value) || 0) + Number.EPSILON) * 100); 
+    });
+    const totalSpent = (totalCents / 100).toFixed(2);
+
+    const carrierCounts: Record<string, number> = {};
     parcels.forEach(p => {
-      // Используем дату добавления или ожидаемую дату
-      const date = p.expectedDate ? new Date(p.expectedDate) : new Date(p.createdAt)
-      const monthYear = date.toLocaleString('ru-RU', { month: 'short', year: 'numeric' })
+      carrierCounts[p.carrier] = (carrierCounts[p.carrier] || 0) + 1;
+    });
+    const carrierData = Object.keys(carrierCounts).map(name => ({
+      name,
+      value: carrierCounts[name]
+    }));
+
+    const monthlyStatsCents: Record<string, number> = {};
+    parcels.forEach(p => {
+      const date = new Date(p.createdAt);
+      const month = date.toLocaleString('ru-RU', { month: 'short', year: '2-digit' });
       
-      monthlyDataMap[monthYear] = (monthlyDataMap[monthYear] || 0) + p.value
-    })
+      // ИСПРАВЛЕНИЕ: Применяем защиту EPSILON для графиков расходов
+      monthlyStatsCents[month] = (monthlyStatsCents[month] || 0) + Math.round(((Number(p.value) || 0) + Number.EPSILON) * 100);
+    });
     
-    // Превращаем объект в массив для библиотеки графиков
-    const monthlyData = Object.keys(monthlyDataMap).map(key => ({
-      name: key,
-      total: monthlyDataMap[key]
-    }))
+    const monthlyData = Object.keys(monthlyStatsCents).map(name => ({
+      name,
+      total: Number((monthlyStatsCents[name] / 100).toFixed(2))
+    }));
 
-    // 2. Распределение по перевозчикам (для круговой диаграммы)
-    const carrierDataMap: Record<string, number> = {}
-    parcels.forEach(p => {
-      carrierDataMap[p.carrier] = (carrierDataMap[p.carrier] || 0) + 1
-    })
-    
-    const carrierData = Object.keys(carrierDataMap).map(key => ({
-      name: key,
-      value: carrierDataMap[key]
-    }))
+    return NextResponse.json({
+      stats: { totalParcels, deliveredCount, lostCount, totalSpent },
+      carrierData,
+      monthlyData
+    });
 
-    // 3. Общая краткая статистика
-    const totalSpent = parcels.reduce((sum, p) => sum + p.value, 0)
-    const totalParcels = parcels.length
-    const deliveredCount = parcels.filter(p => p.status === 'доставлено').length
-
-    return NextResponse.json({ 
-      monthlyData, 
-      carrierData, 
-      stats: { totalSpent, totalParcels, deliveredCount } 
-    })
   } catch (error) {
-    console.error('Ошибка GET /api/analytics:', error)
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
+    console.error('Ошибка аналитики:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
