@@ -48,8 +48,6 @@ export default function DashboardPage() {
   const [isFormVisible, setIsFormVisible] = useState(false)
   const [editingParcelId, setEditingParcelId] = useState<string | null>(null)
 
-  // FIX: value хранится как строка для контролируемого input,
-  // но парсится только там, где нужно число
   const [formData, setFormData] = useState({
     trackCode: '', name: '', value: '', carrier: 'Georgian Post', 
     expectedDate: '', purchaseDate: '', recipient: '', comment: '', status: 'ожидается'
@@ -99,10 +97,8 @@ export default function DashboardPage() {
     router.push('/login') 
   }
   
-  const activeParcels = useMemo(
-    () => parcels.filter(p => p.status !== 'доставлено' && p.status !== 'утеряно'),
-    [parcels]
-  )
+  // Оптимизированные вычисления через useMemo
+  const activeParcels = useMemo(() => parcels.filter(p => p.status !== 'доставлено' && p.status !== 'утеряно'), [parcels])
   const deliveredCount = useMemo(() => parcels.filter(p => p.status === 'доставлено').length, [parcels])
   const lostCount = useMemo(() => parcels.filter(p => p.status === 'утеряно').length, [parcels])
   const getActiveCount = (name: string) => activeParcels.filter(p => p.recipient === name).length
@@ -110,70 +106,81 @@ export default function DashboardPage() {
   const baseCarriers = ['Georgian Post', 'Camex', 'USA2GEORGIA']
   const allAvailableCarriers = [...baseCarriers, ...userCarriers.map(c => c.name)]
 
-  // FIX: оба расчёта вынесены в useMemo — вычисляются один раз за рендер,
-  // а не по 2-3 раза каждый. Парсим value здесь, а не в render-функции.
-  const { bestPartnerName, riskAdvice } = useMemo(() => {
-    // FIX: используем parseFloat один раз, явно
-    const formValue = parseFloat(formData.value)
-    const formDate = formData.expectedDate ? new Date(formData.expectedDate).getTime() : NaN
+  /**
+   * AI-Движок расчета таможенного риска (0-100%).
+   */
+  const getParcelRiskPercentage = (current: any, isFromForm = false) => {
+    const val = parseFloat(current.value) || 0;
+    if (val >= 300) return 100;
 
-    const hasRequiredFields = formData.value !== '' && !isNaN(formValue) && formValue > 0
-    const hasDate = formData.expectedDate !== '' && !isNaN(formDate)
+    let riskPercentage = 0;
+    if (val >= 200) riskPercentage += 35;
+    else if (val >= 100) riskPercentage += 15;
+    else riskPercentage += 5;
 
-    // --- findBestPartner ---
-    let bestPartnerName: string | null = null
-    if (hasRequiredFields && hasDate && formData.carrier) {
-      const allCandidates = [ownerName, ...partners.filter(p => p.isActive).map(p => p.name)]
-      let minLoad = Infinity
+    if (!current.expectedDate) return riskPercentage;
+    const currentFieldsTime = new Date(current.expectedDate).getTime();
+    if (isNaN(currentFieldsTime)) return riskPercentage;
+
+    let hasCarrierCollision = false;
+    let hasDifferentCarrierCollision = false;
+    let hasShopCollision = false;
+
+    activeParcels.forEach(p => {
+      if (!isFromForm && p.id === current.id) return;
+      if (isFromForm && editingParcelId && p.id === editingParcelId) return;
+      if (!p.expectedDate) return;
+
+      const pTime = new Date(p.expectedDate).getTime();
+      const dayDiff = Math.abs(pTime - currentFieldsTime) / 86400000;
+
+      if (dayDiff <= 4 && p.recipient === current.recipient) {
+        if (p.carrier === current.carrier) hasCarrierCollision = true;
+        else hasDifferentCarrierCollision = true;
+        if (p.name.toLowerCase() === current.name.toLowerCase()) hasShopCollision = true;
+      }
+    });
+
+    if (hasCarrierCollision) riskPercentage += 35;
+    if (hasDifferentCarrierCollision) riskPercentage += 15;
+    if (hasShopCollision) riskPercentage += 15;
+
+    return Math.min(riskPercentage, 100);
+  }
+
+  // Визуальный бейдж процента риска
+  const getRiskBadge = (percent: number) => {
+    if (percent >= 61) return <span className="bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 rounded-lg text-xs font-black uppercase">HIGH RISK ({percent}%)</span>
+    if (percent >= 31) return <span className="bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-lg text-xs font-black uppercase">MEDIUM RISK ({percent}%)</span>
+    return <span className="bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-lg text-xs font-black uppercase">LOW RISK ({percent}%)</span>
+  }
+
+  // AI-Оптимизация: Вычисляем совет и риск 1 раз при изменении формы
+  const { bestPartnerName, currentFormRisk } = useMemo(() => {
+    const formValue = parseFloat(formData.value) || 0;
+    const hasDate = formData.expectedDate !== '' && !isNaN(new Date(formData.expectedDate).getTime());
+    
+    let best: string | null = null;
+    const formRisk = getParcelRiskPercentage(formData, true);
+    
+    if (formValue > 0 && hasDate && formData.carrier) {
+      const allCandidates = [ownerName, ...partners.filter(p => p.isActive).map(p => p.name)];
+      let minRisk = Infinity;
 
       for (const candidate of allCandidates) {
-        const load = activeParcels.filter(p => {
-          if (!p.expectedDate) return false
-          const pDate = new Date(p.expectedDate).getTime()
-          return (
-            p.carrier === formData.carrier &&
-            p.recipient === candidate &&
-            Math.abs(pDate - formDate) / 86400000 <= 4
-          )
-        }).reduce((sum, p) => sum + p.value, 0)
-
-        if (load < minLoad && load + formValue < 300) {
-          minLoad = load
-          bestPartnerName = candidate
+        const mockParcel = { ...formData, recipient: candidate };
+        const projectedRisk = getParcelRiskPercentage(mockParcel, true);
+        
+        if (projectedRisk < minRisk) {
+          minRisk = projectedRisk;
+          best = candidate;
         }
       }
+      if (minRisk >= formRisk) best = null; // Если замена не помогает, не советуем
     }
 
-    // --- calculateRiskAndAdvise ---
-    let riskAdvice: { message: string; advices: string[] } | null = null
-    if (hasRequiredFields && hasDate && formData.recipient && formData.carrier) {
-      const currentCluster = activeParcels.filter(p => {
-        if (!p.expectedDate || p.id === editingParcelId) return false
-        const pDate = new Date(p.expectedDate).getTime()
-        return (
-          p.carrier === formData.carrier &&
-          p.recipient === formData.recipient &&
-          Math.abs(pDate - formDate) / 86400000 <= 4
-        )
-      })
-
-      const projectedTotal = currentCluster.reduce((sum, p) => sum + p.value, 0) + formValue
-
-      if (projectedTotal >= 300) {
-        riskAdvice = {
-          message: `🚨 Внимание! Лимит превышен (${projectedTotal.toFixed(2)} ₾).`,
-          advices: [
-            bestPartnerName && bestPartnerName !== formData.recipient
-              ? `👥 Рекомендуем партнера: "${bestPartnerName}"`
-              : `⚠️ Нет свободных лимитов!`,
-            `✈️ Рекомендуется задержать посылку.`
-          ]
-        }
-      }
-    }
-
-    return { bestPartnerName, riskAdvice }
-  }, [formData.value, formData.expectedDate, formData.carrier, formData.recipient, activeParcels, partners, ownerName, editingParcelId])
+    return { bestPartnerName: best, currentFormRisk: formRisk };
+  }, [formData, activeParcels, partners, ownerName, editingParcelId])
 
   const handleParcelSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -185,7 +192,6 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({
           ...formData,
-          // FIX: parseFloat вызывается ровно один раз — при сабмите
           value: parseFloat(formData.value) || 0
         }) 
       })
@@ -214,9 +220,7 @@ export default function DashboardPage() {
     setFormData({
       trackCode: p.trackCode,
       name: p.name,
-      // FIX: конвертируем число обратно в строку явно через String(),
-      // избегая артефактов toFixed/toString при граничных значениях
-      value: String(p.value),
+      value: String(p.value), // Явный перевод в строку
       carrier: p.carrier,
       expectedDate: p.expectedDate ? p.expectedDate.split('T')[0] : '',
       purchaseDate: p.purchaseDate ? p.purchaseDate.split('T')[0] : '',
@@ -228,14 +232,20 @@ export default function DashboardPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // FIX: обработчик изменения цены — принимает только валидный ввод.
-  // Разрешаем: пустую строку, цифры, одну точку/запятую и дробную часть.
-  // Запятую нормализуем в точку, чтобы parseFloat работал корректно.
+  // Безопасный ввод цифр "на лету"
   const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(',', '.')
-    // Разрешаем: "", "0", "12", "12.", "12.5", "0.01" — но не "12.3.4" или "abc"
     if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
       setFormData(prev => ({ ...prev, value: raw }))
+    }
+  }
+
+  // Окончательное банковское округление при потере фокуса полем цены
+  const handleValueBlur = () => {
+    const numValue = parseFloat(formData.value);
+    if (!isNaN(numValue)) {
+      const safeNum = Math.round((numValue + Number.EPSILON) * 100) / 100;
+      setFormData(prev => ({ ...prev, value: safeNum.toFixed(2) }));
     }
   }
 
@@ -264,7 +274,7 @@ export default function DashboardPage() {
       <div className="flex justify-center items-center min-h-screen bg-slate-50 text-slate-500 font-medium">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-          <p>Загрузка дашборда...</p>
+          <p>Загрузка AI-ядра...</p>
         </div>
       </div>
     )
@@ -274,12 +284,12 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
       <div className="max-w-3xl mx-auto p-4 md:p-8 space-y-8">
         
-        {/* ШАПКА */}
+        {/* ИСПРАВЛЕННАЯ ШАПКА: Banderoli.AI + Кабинет + Архив */}
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Banderoli<span className="text-indigo-600">.</span></h1>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Banderoli<span className="text-indigo-600">.AI</span></h1>
           <div className="flex flex-wrap gap-3">
             <Link href="/analytics" className="bg-indigo-50 text-indigo-700 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-100 transition-colors flex items-center gap-2">
-              📊 Аналитика
+              📊 Аналитика рисков
             </Link>
             <Link href="/profile" className="bg-slate-100 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors">
               Кабинет
@@ -299,7 +309,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* УВЕДОМЛЕНИЯ */}
+        {/* УВЕДОМЛЕНИЯ ХАБОВ */}
         {alerts.length > 0 && (
           <div className="space-y-3">
             {alerts.map((alert) => (
@@ -352,17 +362,23 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* АЛЕРТ ЛИМИТА */}
-        {/* FIX: riskAdvice вычислен один раз в useMemo, просто рендерим */}
-        {riskAdvice && isFormVisible && (
-          <div className="p-5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 shadow-sm animate-fade-in">
-            <p className="font-extrabold text-lg mb-3 flex items-center gap-2">
-              {riskAdvice.message}
+        {/* АЛЕРТ РИСКА (В ПРОЦЕНТАХ) */}
+        {isFormVisible && currentFormRisk >= 31 && (
+          <div className={`p-5 rounded-2xl border shadow-sm space-y-2 animate-fade-in ${currentFormRisk >= 61 ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+            <p className="font-extrabold text-lg flex items-center gap-2">
+              🚨 AI-Движок обнаружил вероятность коллизии ({currentFormRisk}%)
             </p>
-            <div className="flex flex-col gap-2">
-              {riskAdvice.advices.map((a, i) => (
-                <div key={i} className="bg-white px-4 py-2.5 rounded-xl text-sm font-medium border border-rose-100 shadow-sm">{a}</div>
-              ))}
+            <div className="flex flex-col gap-2 mt-2">
+              {bestPartnerName && (
+                <div className="bg-white px-4 py-2.5 rounded-xl text-sm font-medium border border-rose-100 shadow-sm">
+                  👥 Рекомендуем партнера для снижения риска: <span className="font-bold text-emerald-600">"{bestPartnerName}"</span>
+                </div>
+              )}
+              {currentFormRisk >= 100 && (
+                <div className="bg-white px-4 py-2.5 rounded-xl text-sm font-medium border border-rose-100 shadow-sm">
+                  ⚠️ Лимит в 300 ₾ превышен. Гарантированная растаможка.
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -372,7 +388,7 @@ export default function DashboardPage() {
           <form onSubmit={handleParcelSubmit} className="bg-white p-6 md:p-8 rounded-2xl border border-slate-100 shadow-xl relative animate-fade-in">
             <button type="button" onClick={resetForm} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">✕</button>
             
-            <h2 className="font-extrabold text-xl text-slate-800 mb-6">{editingParcelId ? 'Редактировать посылку' : 'Новая посылка'}</h2>
+            <h2 className="font-extrabold text-xl text-slate-800 mb-6">{editingParcelId ? 'Редактировать посылку' : 'Анализ новой посылки'}</h2>
             
             <div className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -400,14 +416,6 @@ export default function DashboardPage() {
               
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Стоимость (₾)</label>
-                {/*
-                  FIX: убираем type="number" — он конфликтует со строковым
-                  контролируемым состоянием (React удаляет trailing-точку и
-                  ведущие нули до того, как пользователь дописал число).
-                  Вместо этого используем type="text" с inputMode="decimal"
-                  (показывает цифровую клавиатуру на мобильных) и validируем
-                  через handleValueChange — только /^\d*\.?\d*$/.
-                */}
                 <input
                   required
                   type="text"
@@ -416,6 +424,7 @@ export default function DashboardPage() {
                   className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-lg font-bold text-slate-900"
                   value={formData.value}
                   onChange={handleValueChange}
+                  onBlur={handleValueBlur}
                 />
               </div>
               
@@ -476,7 +485,7 @@ export default function DashboardPage() {
               </div>
 
               <button type="submit" className="w-full bg-indigo-600 text-white p-4 rounded-xl font-bold text-lg hover:bg-indigo-700 hover:shadow-lg transition-all transform active:scale-[0.99] mt-4">
-                {editingParcelId ? 'Сохранить изменения' : 'Добавить в систему'}
+                {editingParcelId ? 'Сохранить изменения' : 'Запустить мониторинг рисков'}
               </button>
             </div>
           </form>
@@ -484,18 +493,11 @@ export default function DashboardPage() {
 
         {/* АКТИВНЫЕ ПОСЫЛКИ */}
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 mb-5 ml-1">Активные посылки</h2>
+          <h2 className="text-xl font-extrabold text-slate-800 mb-5 ml-1">Грузы в транзите</h2>
           <div className="space-y-4">
             {activeParcels.map((p) => {
-              const isRisky = p.expectedDate ? activeParcels.filter(cp => {
-                if (!cp.expectedDate) return false
-                return (
-                  cp.carrier === p.carrier &&
-                  cp.recipient === p.recipient &&
-                  Math.abs(new Date(cp.expectedDate).getTime() - new Date(p.expectedDate!).getTime()) / 86400000 <= 4
-                )
-              }).reduce((sum, cp) => sum + cp.value, 0) >= 300 : false
-
+              const riskPercent = getParcelRiskPercentage(p);
+              const isRisky = riskPercent >= 61;
               const hasCarrierAlert = alerts.some(a => a.relatedHub === p.carrier)
 
               return (
@@ -505,9 +507,9 @@ export default function DashboardPage() {
 
                   <div className="flex flex-col md:flex-row justify-between items-start gap-4">
                     <div className="space-y-3 flex-1 w-full">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-3">
                         <h3 className="font-bold text-lg text-slate-900 leading-none">{p.name}</h3>
-                        {isRisky && <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide">Риск лимита</span>}
+                        {getRiskBadge(riskPercent)}
                       </div>
                       
                       <div className="flex flex-wrap items-center gap-2 text-sm">

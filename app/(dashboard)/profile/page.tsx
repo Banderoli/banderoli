@@ -32,6 +32,11 @@ export default function ProfilePage() {
   const [partners, setPartners] = useState<Partner[]>([])
   const [carriers, setCarriers] = useState<Carrier[]>([])
   
+  // Состояния для Telegram
+  const [telegramId, setTelegramId] = useState('')
+  const [telegramMessage, setTelegramMessage] = useState({ text: '', type: '' })
+  const [isTelegramSaving, setIsTelegramSaving] = useState(false)
+  
   const [newCarrier, setNewCarrier] = useState({ name: '', website: '' })
   const [newPartner, setNewPartner] = useState({ name: '', phone: '', idDocument: '' })
   
@@ -44,9 +49,10 @@ export default function ProfilePage() {
     Promise.all([
       fetch('/api/user/profile').then(res => res.ok ? res.json() : {}) as Promise<UserProfile>,
       fetch('/api/partners').then(res => res.ok ? res.json() : { partners: [] }) as Promise<{partners: Partner[]}>,
-      fetch('/api/carriers').then(res => res.ok ? res.json() : { carriers: [] }) as Promise<{carriers: Carrier[]}>
+      fetch('/api/carriers').then(res => res.ok ? res.json() : { carriers: [] }) as Promise<{carriers: Carrier[]}>,
+      fetch('/api/user/telegram').then(res => res.ok ? res.json() : { telegramChatId: '' }) as Promise<{telegramChatId: string}>
     ])
-      .then(([p, pt, c]) => {
+      .then(([p, pt, c, t]) => {
         setFormData({ 
           name: p.name || '', 
           phone: p.phone || '', 
@@ -54,6 +60,7 @@ export default function ProfilePage() {
         })
         setPartners(pt.partners || [])
         setCarriers(c.carriers || [])
+        setTelegramId(t.telegramChatId || '')
       })
       .catch(err => console.error('Ошибка загрузки данных:', err))
       .finally(() => setIsLoading(false))
@@ -74,6 +81,31 @@ export default function ProfilePage() {
       alert('Ошибка при обновлении профиля')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  // Обработчик сохранения Telegram ID
+  const handleSaveTelegram = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsTelegramSaving(true)
+    setTelegramMessage({ text: '', type: '' })
+
+    try {
+      const res = await fetch('/api/user/telegram', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramChatId: telegramId })
+      })
+      
+      if (res.ok) {
+        setTelegramMessage({ text: 'Настройки Telegram успешно сохранены!', type: 'success' })
+      } else {
+        setTelegramMessage({ text: 'Ошибка при сохранении Telegram', type: 'error' })
+      }
+    } catch (error) {
+      setTelegramMessage({ text: 'Ошибка сети', type: 'error' })
+    } finally {
+      setIsTelegramSaving(false)
     }
   }
 
@@ -143,7 +175,14 @@ export default function ProfilePage() {
 
   // --- 5. ИНТЕРФЕЙС (JSX) ---
   if (isLoading) {
-    return <div className="flex justify-center items-center h-screen text-gray-500">Загрузка данных...</div>
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-gray-50 text-gray-500 font-medium">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <p>Загрузка кабинета...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -177,6 +216,44 @@ export default function ProfilePage() {
           </div>
           <button disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors disabled:opacity-50">
             {isSaving ? 'Сохранение...' : 'Сохранить изменения'}
+          </button>
+        </form>
+      </section>
+
+      {/* НАСТРОЙКИ TELEGRAM БОТА */}
+      <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500">
+        <h2 className="text-lg font-bold text-gray-800 mb-2">Уведомления Telegram</h2>
+        <p className="text-sm text-gray-500 mb-6">
+          Привяжите свой аккаунт Telegram, чтобы получать мгновенные предупреждения о таможенных рисках (при 60%+) и напоминания за день до прибытия посылок.
+        </p>
+
+        <form onSubmit={handleSaveTelegram} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-2">Ваш Telegram Chat ID</label>
+            <input
+              type="text"
+              placeholder="Например: 123456789"
+              className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono"
+              value={telegramId}
+              onChange={(e) => setTelegramId(e.target.value)}
+            />
+            <p className="text-xs text-gray-400 mt-2">
+              💡 <b>Как узнать свой ID?</b> Найдите в Telegram бота <a href="https://t.me/userinfobot" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">@userinfobot</a>, напишите ему /start, и он пришлет ваш уникальный номер (Id).
+            </p>
+          </div>
+
+          {telegramMessage.text && (
+            <div className={`p-3 rounded-xl text-sm font-bold ${telegramMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              {telegramMessage.text}
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            disabled={isTelegramSaving}
+            className="w-full bg-slate-800 text-white p-3 rounded-xl font-medium shadow-sm hover:bg-slate-700 transition-all disabled:opacity-50"
+          >
+            {isTelegramSaving ? 'Сохранение...' : 'Сохранить настройки Telegram'}
           </button>
         </form>
       </section>

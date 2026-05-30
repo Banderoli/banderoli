@@ -3,17 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
-// Ультимативная финансовая функция с защитой Number.EPSILON
-function parseMoney(val: any): number {
-  if (val === undefined || val === null || val === '') return 0;
-  let str = String(val).replace(',', '.');
-  str = str.replace(/[^0-9.]/g, '');
-  const num = Number(str);
-  if (isNaN(num)) return 0;
-  
-  return Math.round((num + Number.EPSILON) * 100) / 100;
-}
-
 async function getUserId() {
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
@@ -27,63 +16,65 @@ async function getUserId() {
   }
 }
 
+// PUT: Обновление
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const userId = await getUserId();
     if (!userId) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
 
-    const { id } = await params;
+    // Ожидаем promise параметров
+    const resolvedParams = await params;
+    const parcelId = resolvedParams.id;
+
+    if (!parcelId) {
+      return NextResponse.json({ error: 'ID посылки не найден' }, { status: 400 });
+    }
+
     const data = await req.json();
 
-    const existing = await prisma.parcel.findUnique({ where: { id } });
+    const existing = await prisma.parcel.findUnique({ where: { id: parcelId } });
     if (!existing || existing.userId !== userId) {
-      return NextResponse.json({ error: 'Посылка не найдена или нет прав' }, { status: 403 });
+      return NextResponse.json({ error: 'Посылка не найдена' }, { status: 403 });
     }
 
-    // Применяем парсер только если цена была передана
-    let safeValue = undefined;
-    if (data.value !== undefined && data.value !== null && data.value !== '') {
-      safeValue = parseMoney(data.value);
-    }
+    // Использование parseMoney для точности
+    const safeValue = data.value !== undefined ? Math.round((parseFloat(String(data.value).replace(',', '.')) + Number.EPSILON) * 100) / 100 : existing.value;
 
     const updatedParcel = await prisma.parcel.update({
-      where: { id },
+      where: { id: parcelId },
       data: {
-        trackCode: data.trackCode,
-        name: data.name,
+        trackCode: data.trackCode || existing.trackCode,
+        name: data.name || existing.name,
         value: safeValue,
-        carrier: data.carrier,
-        expectedDate: data.expectedDate ? new Date(data.expectedDate) : undefined,
-        purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : null,
-        recipient: data.recipient,
+        carrier: data.carrier || existing.carrier,
+        status: data.status || existing.status,
+        recipient: data.recipient || existing.recipient,
         comment: data.comment,
-        status: data.status
+        expectedDate: data.expectedDate ? new Date(data.expectedDate) : existing.expectedDate,
       }
     });
 
     return NextResponse.json({ success: true, parcel: updatedParcel });
   } catch (error) {
-    console.error('Ошибка PUT /api/parcels/[id]:', error);
+    console.error('Ошибка PUT:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
 
+// DELETE: Удаление
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const userId = await getUserId();
     if (!userId) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
 
-    const { id } = await params;
+    const resolvedParams = await params;
+    const parcelId = resolvedParams.id;
 
-    const existing = await prisma.parcel.findUnique({ where: { id } });
-    if (!existing || existing.userId !== userId) {
-      return NextResponse.json({ error: 'Посылка не найдена или нет прав' }, { status: 403 });
-    }
+    if (!parcelId) return NextResponse.json({ error: 'ID не найден' }, { status: 400 });
 
-    await prisma.parcel.delete({ where: { id } });
+    await prisma.parcel.delete({ where: { id: parcelId } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Ошибка DELETE /api/parcels/[id]:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }

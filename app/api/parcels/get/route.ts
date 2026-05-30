@@ -1,25 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import jwt from 'jsonwebtoken'
+import { jwtVerify } from 'jose'
+import { cookies } from 'next/headers'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'parcelge-secret-key-change-in-production'
-
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   try {
-    const token = req.cookies.get('token')?.value
-    if (!token) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
-    
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string }
+    const cookieStore = await cookies()
+    const token = cookieStore.get('token')?.value
 
-    // Получаем все посылки текущего пользователя
+    if (!token) {
+      return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
+    }
+
+    // 1. Преобразуем строку секрета в Uint8Array
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'parcelge-secret-key')
+
+    // 2. Используем правильную переменную для результата (payload вместо decoded)
+    const { payload } = await jwtVerify(token, secret)
+    
+    // 3. Теперь payload.userId доступен
+    const userId = payload.userId as string
+
     const parcels = await prisma.parcel.findMany({
-      where: { userId: decoded.userId },
+      where: { userId },
       orderBy: { createdAt: 'desc' }
     })
 
     return NextResponse.json({ parcels })
   } catch (error) {
     console.error('Ошибка получения:', error)
-    return NextResponse.json({ parcels: [] }) // Возвращаем пустой список при ошибке
+    return NextResponse.json({ parcels: [] }, { status: 500 })
   }
 }

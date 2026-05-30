@@ -1,63 +1,43 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-// import nodemailer from 'nodemailer' // Пока отключаем почтальона
-import crypto from 'crypto'
+// app/api/auth/reset/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '../../../../lib/prisma';
+import bcrypt from 'bcryptjs';
 
 export async function POST(req: NextRequest) {
   try {
-    const { email } = await req.json()
-    const user = await prisma.user.findUnique({ where: { email } })
-    
-    // В целях безопасности лучше всегда возвращать success: true, 
-    // чтобы хакеры не могли перебирать email-адреса.
-    if (!user) {
-      return NextResponse.json({ success: true })
+    const { email, resetToken, newPassword } = await req.json();
+
+    if (!email || !resetToken || !newPassword) {
+      return NextResponse.json({ error: 'Недостаточно данных' }, { status: 400 });
     }
 
-    const resetToken = crypto.randomBytes(32).toString('hex')
-    const resetTokenExpiry = new Date(Date.now() + 3600000)
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { resetToken, resetTokenExpiry }
-    })
-
-    const resetUrl = `${req.nextUrl.origin}/reset-password?token=${resetToken}`
-    
-    // ========================================================
-    // ТРЮК ДЛЯ РАЗРАБОТКИ: Вместо реального письма выводим ссылку в терминал
-    console.log('\n=========================================');
-    console.log('🚨 ЗАПРОС НА СБРОС ПАРОЛЯ!');
-    console.log(`📧 Для пользователя: ${email}`);
-    console.log(`🔗 ПЕРЕЙДИТЕ ПО ЭТОЙ ССЫЛКЕ ДЛЯ СБРОСА:`);
-    console.log(resetUrl);
-    console.log('=========================================\n');
-    // ========================================================
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Ошибка отправки:', error)
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
-  }
-}
-
-export async function PUT(req: NextRequest) {
-  try {
-    const { token, newPassword } = await req.json()
-    
     const user = await prisma.user.findFirst({
-      where: { resetToken: token, resetTokenExpiry: { gt: new Date() } }
-    })
+      where: {
+        email,
+        resetToken,
+        resetTokenExpiry: { gt: new Date() }, // Токен еще не истек
+      },
+    });
 
-    if (!user) return NextResponse.json({ error: 'Ссылка недействительна или просрочена' }, { status: 400 })
+    if (!user) {
+      return NextResponse.json({ error: 'Неверный или просроченный токен' }, { status: 400 });
+    }
+
+    // Шифруем новый пароль
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: newPassword, resetToken: null, resetTokenExpiry: null }
-    })
+      data: {
+        password: hashedNewPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
+    });
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, message: 'Пароль успешно изменен' });
   } catch (error) {
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
+    console.error('Ошибка сброса пароля:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }

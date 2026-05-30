@@ -1,4 +1,5 @@
-// 1. Настройки генератора и базы данных остаются без изменений
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,17 +10,17 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// 2. Создаем строгие перечисления для статусов
 enum ParcelStatus {
-  EXPECTED    // ожидается
-  IN_TRANSIT  // в пути
-  DELIVERED   // доставлено
+  EXPECTED
+  IN_TRANSIT
+  DELIVERED
 }
 
 enum AlertSeverity {
   INFO
   WARNING
   ERROR
+  CRITICAL
 }
 
 model User {
@@ -29,6 +30,7 @@ model User {
   name             String
   phone            String?
   idDocument       String?
+  telegramChatId   String?   
   resetToken       String?
   resetTokenExpiry DateTime?
   createdAt        DateTime  @default(now())
@@ -46,8 +48,6 @@ model Carrier {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
-  
-  // ИСПРАВЛЕНО: Связь parcels Parcel[] удалена, так как в Parcel мы используем просто строку (carrier String)
 }
 
 model Partner {
@@ -55,7 +55,7 @@ model Partner {
   name       String
   phone      String?
   idDocument String?
-  slotNumber Int?     
+  slotNumber Int?      
   isActive   Boolean  @default(false)
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -65,27 +65,30 @@ model Partner {
 
 model Parcel {
   id           String    @id @default(cuid())
-  trackCode    String    @unique
+  trackCode    String    // Убрали глобальный @unique отсюда
   name         String
   value        Float
-  carrier      String    // Оставлено просто как строка
+  carrier      String    
   expectedDate DateTime?
   purchaseDate DateTime?
   recipient    String
   comment      String?
-  status       String    @default("ожидается") // Оставлено текстом для совместимости с фронтендом
+  status       String    @default("ожидается") 
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  // Уникальность теперь работает только в рамках одного пользователя!
+  @@unique([userId, trackCode])
 }
 
 model Alert {
-  id         String         @id @default(cuid())
+  id         String        @id @default(cuid())
   type       String   
   message    String   
-  severity   AlertSeverity  @default(INFO) 
+  severity   AlertSeverity @default(INFO) 
   relatedHub String?  
-  isResolved Boolean        @default(false)
-  createdAt  DateTime       @default(now())
+  isResolved Boolean       @default(false)
+  createdAt  DateTime      @default(now())
 }
