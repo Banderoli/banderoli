@@ -1,33 +1,33 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { jwtVerify } from 'jose'
 
-export function middleware(req: NextRequest) {
-  // 1. Извлекаем токен из куки
-  const token = req.cookies.get('token')?.value
-  const path = req.nextUrl.pathname
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'parcelge-secret-key'
+)
 
-  // 2. Список путей, куда нельзя пускать без авторизации
-  const isProtectedRoute = path.startsWith('/dashboard') || path.startsWith('/profile')
-  
-  // 3. Список путей авторизации
-  const isAuthRoute = path === '/login' || path === '/register'
+export async function middleware(request: NextRequest) {
+  const token = request.cookies.get('token')?.value
+  const pathname = request.nextUrl.pathname
 
-  // Блокировка: если запрашивают защищенную страницу, а токена нет
-  if (isProtectedRoute && !token) {
-    return NextResponse.redirect(new URL('/login', req.url))
+  const isAuthPage = pathname === '/login' || pathname === '/register'
+  const isDashboardPage = pathname === '/dashboard' || pathname.startsWith('/dashboard')
+
+  if (isDashboardPage && !token) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Блокировка: если запрашивают страницу логина/регистрации, а токен УЖЕ есть
-  if (isAuthRoute && token) {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+  if (isAuthPage && token) {
+    try {
+      await jwtVerify(token, JWT_SECRET)
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    } catch (error) {
+      // Token невалиден — остаёмся на auth странице
+    }
   }
 
   return NextResponse.next()
 }
 
-// Конфигурация: применяем middleware ко всем путям, кроме статики и API
 export const config = {
-  matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }
