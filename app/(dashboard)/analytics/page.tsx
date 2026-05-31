@@ -96,13 +96,14 @@ export default function AnalyticsPage() {
             iconType
           };
         // ... внутри блока catch
+// Найди этот блок внутри функции fetchWeather
 } catch {
-  // Исправление: явно указываем тип 'unknown'
   return { 
     hub: city, 
     temp: 'N/A', 
     condition: 'Связь потеряна', 
-    iconType: 'unknown' as 'unknown' 
+    // Явно указываем тип 'unknown' с помощью оператора as
+    iconType: 'unknown' as 'clear' | 'clouds' | 'rain' | 'unknown' 
   };
 }
       }));
