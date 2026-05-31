@@ -60,7 +60,7 @@ export async function checkWeatherAlerts() {
           data: {
             type: 'WEATHER',
             message,
-            severity,
+            severity: severity as any,
             relatedHub: hub.name
           }
         });
