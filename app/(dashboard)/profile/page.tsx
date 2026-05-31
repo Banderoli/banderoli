@@ -1,336 +1,119 @@
 'use client'
-
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 
-// --- 1. ОПИСАНИЕ ТИПОВ ДАННЫХ (ДЛЯ TYPESCRIPT) ---
-interface UserProfile {
-  name?: string;
-  phone?: string;
-  idDocument?: string;
-}
-
-interface Partner {
-  id: string;
-  name: string;
-  phone?: string;
-  idDocument?: string;
-}
-
-interface Carrier {
-  id: string;
-  name: string;
-  website?: string;
-}
+interface Partner { id: string; name: string; isActive: boolean; }
 
 export default function ProfilePage() {
-  const router = useRouter()
-  
-  // --- 2. СОСТОЯНИЯ ---
-  const [formData, setFormData] = useState<UserProfile>({ name: '', phone: '', idDocument: '' })
+  const [ownerName, setOwnerName] = useState('')
   const [partners, setPartners] = useState<Partner[]>([])
-  const [carriers, setCarriers] = useState<Carrier[]>([])
-  
-  // Состояния для Telegram
-  const [telegramId, setTelegramId] = useState('')
-  const [telegramMessage, setTelegramMessage] = useState({ text: '', type: '' })
-  const [isTelegramSaving, setIsTelegramSaving] = useState(false)
-  
-  const [newCarrier, setNewCarrier] = useState({ name: '', website: '' })
-  const [newPartner, setNewPartner] = useState({ name: '', phone: '', idDocument: '' })
-  
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isAddingPartner, setIsAddingPartner] = useState(false)
+  const [newPartnerName, setNewPartnerName] = useState('')
+  const [loading, setLoading] = useState(true)
 
-  // --- 3. ЗАГРУЗКА ДАННЫХ ---
+  // PWA State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [isInstallable, setIsInstallable] = useState(false)
+
   useEffect(() => {
-    Promise.all([
-      fetch('/api/user/profile').then(res => res.ok ? res.json() : {}) as Promise<UserProfile>,
-      fetch('/api/partners').then(res => res.ok ? res.json() : { partners: [] }) as Promise<{partners: Partner[]}>,
-      fetch('/api/carriers').then(res => res.ok ? res.json() : { carriers: [] }) as Promise<{carriers: Carrier[]}>,
-      fetch('/api/user/telegram').then(res => res.ok ? res.json() : { telegramChatId: '' }) as Promise<{telegramChatId: string}>
-    ])
-      .then(([p, pt, c, t]) => {
-        setFormData({ 
-          name: p.name || '', 
-          phone: p.phone || '', 
-          idDocument: p.idDocument || '' 
-        })
-        setPartners(pt.partners || [])
-        setCarriers(c.carriers || [])
-        setTelegramId(t.telegramChatId || '')
-      })
-      .catch(err => console.error('Ошибка загрузки данных:', err))
-      .finally(() => setIsLoading(false))
+    fetchData();
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+      setIsInstallable(true)
+    }
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
   }, [])
 
-  // --- 4. ОБРАБОТЧИКИ СОБЫТИЙ ---
-  const handleProfileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSaving(true)
+  const fetchData = async () => {
     try {
-      await fetch('/api/user/profile', { 
-        method: 'PUT', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData) 
-      })
-      alert('Профиль успешно обновлен!')
-    } catch (error) {
-      alert('Ошибка при обновлении профиля')
-    } finally {
-      setIsSaving(false)
-    }
+      const res = await fetch('/api/partners')
+      if (res.ok) {
+        const data = await res.json()
+        setOwnerName(data.ownerName || '')
+        setPartners(data.partners || [])
+      }
+    } catch (error) { console.error(error) } finally { setLoading(false) }
   }
 
-  // Обработчик сохранения Telegram ID
-  const handleSaveTelegram = async (e: React.FormEvent) => {
+  const handleUpdateOwner = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsTelegramSaving(true)
-    setTelegramMessage({ text: '', type: '' })
-
-    try {
-      const res = await fetch('/api/user/telegram', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegramChatId: telegramId })
-      })
-      
-      if (res.ok) {
-        setTelegramMessage({ text: 'Настройки Telegram успешно сохранены!', type: 'success' })
-      } else {
-        setTelegramMessage({ text: 'Ошибка при сохранении Telegram', type: 'error' })
-      }
-    } catch (error) {
-      setTelegramMessage({ text: 'Ошибка сети', type: 'error' })
-    } finally {
-      setIsTelegramSaving(false)
-    }
+    await fetch('/api/partners', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ownerName }) })
+    alert('Имя владельца обновлено')
   }
 
   const handleAddPartner = async (e: React.FormEvent) => {
     e.preventDefault()
-    try {
-      const res = await fetch('/api/partners', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPartner) 
-      })
-      if (res.ok) { 
-        const data = await res.json()
-        setPartners([...partners, data.partner])
-        setNewPartner({ name: '', phone: '', idDocument: '' })
-        setIsAddingPartner(false)
-      }
-    } catch (error) {
-      console.error('Ошибка при добавлении партнера', error)
+    if (!newPartnerName.trim()) return
+    await fetch('/api/partners', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newPartnerName, isActive: true }) })
+    setNewPartnerName('')
+    fetchData()
+  }
+
+  const handleDeletePartner = async (id: string) => {
+    if (confirm('Удалить партнера?')) {
+      await fetch(`/api/partners?id=${id}`, { method: 'DELETE' })
+      fetchData()
     }
   }
 
-  const deletePartner = async (id: string) => {
-    if (!confirm('Удалить партнера?')) return
-    await fetch('/api/partners', { 
-      method: 'DELETE', 
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }) 
-    })
-    setPartners(partners.filter(p => p.id !== id))
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') setIsInstallable(false)
+    setDeferredPrompt(null)
   }
 
-  const addCarrier = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newCarrier.name) return
-    try {
-      const res = await fetch('/api/carriers', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCarrier) 
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setCarriers([...carriers, data.carrier])
-        setNewCarrier({ name: '', website: '' })
-      }
-    } catch (error) {
-      console.error('Ошибка при добавлении службы', error)
-    }
-  }
-
-  const deleteCarrier = async (id: string) => {
-    if (!confirm('Удалить почтовую службу?')) return
-    await fetch('/api/carriers', { 
-      method: 'DELETE', 
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }) 
-    })
-    setCarriers(carriers.filter(c => c.id !== id))
-  }
-
-  const handleDeleteAccount = async () => {
-    if (!confirm('Вы уверены? Это действие нельзя отменить!')) return
-    await fetch('/api/user/profile', { method: 'DELETE' })
-    router.push('/login')
-  }
-
-  // --- 5. ИНТЕРФЕЙС (JSX) ---
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50 text-gray-500 font-medium">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p>Загрузка кабинета...</p>
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <div className="p-20 text-center text-slate-500">Загрузка профиля...</div>
 
   return (
-    <div className="p-4 md:p-8 max-w-3xl mx-auto space-y-8 bg-gray-50 min-h-screen">
+    <div className="py-6 space-y-8 animate-fade-in max-w-2xl mx-auto">
       
-      {/* Шапка */}
-      <div className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-        <h1 className="text-2xl font-extrabold text-gray-800">Настройки профиля</h1>
-        <Link href="/dashboard" className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-4 py-2 rounded-lg">
-          &larr; В панель
-        </Link>
+      <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm text-center">
+        <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">👤</div>
+        <h1 className="text-2xl font-black text-slate-800">Личный Кабинет</h1>
+        <p className="text-slate-500 mt-2">Управление аккаунтом и партнерами для лимитов.</p>
       </div>
 
-      {/* Форма профиля */}
-      <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
-        <h2 className="text-lg font-bold text-gray-800 mb-6">Личные данные</h2>
-        <form onSubmit={handleProfileSubmit} className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">Имя и фамилия</label>
-            <input className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Телефон</label>
-              <input className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">ID Документа</label>
-              <input className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={formData.idDocument} onChange={e => setFormData({...formData, idDocument: e.target.value})} />
-            </div>
-          </div>
-          <button disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors disabled:opacity-50">
-            {isSaving ? 'Сохранение...' : 'Сохранить изменения'}
-          </button>
+      <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-800 mb-4">Владелец аккаунта</h2>
+        <form onSubmit={handleUpdateOwner} className="flex gap-3">
+          <input required className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium" placeholder="Ваше имя" value={ownerName} onChange={e => setOwnerName(e.target.value)} />
+          <button type="submit" className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">Сохранить</button>
         </form>
-      </section>
+      </div>
 
-      {/* НАСТРОЙКИ TELEGRAM БОТА */}
-      <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500">
-        <h2 className="text-lg font-bold text-gray-800 mb-2">Уведомления Telegram</h2>
-        <p className="text-sm text-gray-500 mb-6">
-          Привяжите свой аккаунт Telegram, чтобы получать мгновенные предупреждения о таможенных рисках (при 60%+) и напоминания за день до прибытия посылок.
-        </p>
-
-        <form onSubmit={handleSaveTelegram} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-2">Ваш Telegram Chat ID</label>
-            <input
-              type="text"
-              placeholder="Например: 123456789"
-              className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono"
-              value={telegramId}
-              onChange={(e) => setTelegramId(e.target.value)}
-            />
-            <p className="text-xs text-gray-400 mt-2">
-              💡 <b>Как узнать свой ID?</b> Найдите в Telegram бота <a href="https://t.me/userinfobot" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">@userinfobot</a>, напишите ему /start, и он пришлет ваш уникальный номер (Id).
-            </p>
-          </div>
-
-          {telegramMessage.text && (
-            <div className={`p-3 rounded-xl text-sm font-bold ${telegramMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-              {telegramMessage.text}
-            </div>
-          )}
-
-          <button 
-            type="submit" 
-            disabled={isTelegramSaving}
-            className="w-full bg-slate-800 text-white p-3 rounded-xl font-medium shadow-sm hover:bg-slate-700 transition-all disabled:opacity-50"
-          >
-            {isTelegramSaving ? 'Сохранение...' : 'Сохранить настройки Telegram'}
-          </button>
+      <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-800 mb-4">Партнеры (Члены семьи)</h2>
+        <form onSubmit={handleAddPartner} className="flex gap-3 mb-6">
+          <input required className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium" placeholder="Имя получателя" value={newPartnerName} onChange={e => setNewPartnerName(e.target.value)} />
+          <button type="submit" className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-600 transition-colors">Добавить</button>
         </form>
-      </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Секция: Партнеры */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Партнеры</h2>
-          
-          <div className="space-y-3 mb-6">
-            {partners.length === 0 && <p className="text-sm text-gray-400">У вас пока нет партнеров</p>}
-            {partners.map(p => (
-              <div key={p.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
-                <div>
-                  <p className="font-medium text-gray-800">{p.name}</p>
-                  <div className="flex gap-3 mt-1">
-                    {p.phone && <p className="text-xs text-gray-500">📞 {p.phone}</p>}
-                    {p.idDocument && <p className="text-xs text-gray-500">🆔 ID: {p.idDocument}</p>}
-                  </div>
-                </div>
-                <button onClick={() => deletePartner(p.id)} className="text-sm text-red-500 hover:text-red-700 transition-colors px-2">Удалить</button>
-              </div>
-            ))}
-          </div>
-
-          {!isAddingPartner ? (
-            <button onClick={() => setIsAddingPartner(true)} className="w-full py-3 border-2 border-dashed border-gray-200 text-gray-500 rounded-xl hover:bg-gray-50 hover:border-blue-300 hover:text-blue-600 transition-all font-medium">
-              + Добавить партнера
-            </button>
-          ) : (
-            <form onSubmit={handleAddPartner} className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-3 mt-4">
-              <input required className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400" placeholder="Имя партнера" value={newPartner.name} onChange={e => setNewPartner({...newPartner, name: e.target.value})} />
-              <input className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400" placeholder="Телефон" value={newPartner.phone} onChange={e => setNewPartner({...newPartner, phone: e.target.value})} />
-              <input className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400" placeholder="Номер ID (документа)" value={newPartner.idDocument} onChange={e => setNewPartner({...newPartner, idDocument: e.target.value})} />
-              
-              <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">Сохранить</button>
-                <button type="button" onClick={() => setIsAddingPartner(false)} className="flex-1 bg-white text-gray-600 border p-2 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">Отмена</button>
-              </div>
-            </form>
-          )}
-        </section>
-
-        {/* Секция: Почтовые службы */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Почтовые службы</h2>
-          
-          <div className="space-y-3 mb-6">
-             {carriers.length === 0 && <p className="text-sm text-gray-400">Нет добавленных служб</p>}
-             {carriers.map(c => (
-              <div key={c.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
-                <div>
-                  <p className="font-medium text-gray-800">{c.name}</p>
-                  {c.website && <p className="text-xs text-blue-500 truncate max-w-[120px]">{c.website}</p>}
-                </div>
-                <button onClick={() => deleteCarrier(c.id)} className="text-gray-400 hover:text-red-500 transition-colors text-lg font-bold px-2">&times;</button>
-              </div>
-            ))}
-          </div>
-
-          <form onSubmit={addCarrier} className="space-y-3 pt-4 border-t border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500">Добавить новую службу</h3>
-            <input required className="w-full p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-green-500 transition-all" placeholder="Название (например, DHL)" value={newCarrier.name} onChange={e => setNewCarrier({...newCarrier, name: e.target.value})} />
-            <input className="w-full p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-green-500 transition-all" placeholder="Сайт (необязательно)" value={newCarrier.website} onChange={e => setNewCarrier({...newCarrier, website: e.target.value})} />
-            <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-medium p-2.5 rounded-lg transition-colors">
-              + Добавить службу
-            </button>
-          </form>
-        </section>
+        <div className="space-y-3">
+          {partners.map(p => (
+            <div key={p.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="font-bold text-slate-700">{p.name}</span>
+              <button onClick={() => handleDeletePartner(p.id)} className="text-rose-500 font-bold text-sm hover:underline">Удалить</button>
+            </div>
+          ))}
+          {partners.length === 0 && <p className="text-sm text-slate-500 text-center py-4">Нет добавленных партнеров.</p>}
+        </div>
       </div>
 
-      {/* Опасная зона */}
-      <div className="mt-12 pt-6 border-t border-red-100 flex justify-center">
-        <button onClick={handleDeleteAccount} className="text-red-500 hover:text-red-700 hover:underline text-sm font-medium transition-colors">
-          Удалить аккаунт навсегда
-        </button>
-      </div>
+      {isInstallable && (
+        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-8 rounded-3xl shadow-lg text-white text-center relative overflow-hidden">
+          <div className="relative z-10 space-y-4">
+            <h2 className="text-xl font-bold">Установить Banderoli.AI</h2>
+            <p className="text-indigo-100 text-sm">Добавьте наше приложение на главный экран телефона для быстрого доступа.</p>
+            <button onClick={handleInstallClick} className="mt-4 bg-white text-indigo-600 px-6 py-3 rounded-xl font-black shadow-md hover:scale-105 transition-transform">
+              📱 Добавить на экран
+            </button>
+          </div>
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl"></div>
+        </div>
+      )}
 
     </div>
   )
