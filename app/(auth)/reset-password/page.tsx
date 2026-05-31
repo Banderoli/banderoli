@@ -1,8 +1,10 @@
 'use client'
-import { useState } from 'react'
+
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function ResetPassword() {
+// Компонент, содержащий всю логику работы с параметрами и формой
+function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
@@ -16,7 +18,9 @@ export default function ResetPassword() {
     if (password !== confirm) return setError('Пароли не совпадают')
     
     const res = await fetch('/api/auth/reset', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, newPassword: password })
+      method: 'PUT', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ token, newPassword: password })
     })
     
     if (res.ok) router.push('/login')
@@ -35,5 +39,14 @@ export default function ResetPassword() {
         <button type="submit" className="w-full bg-green-600 text-white p-3 rounded-lg font-bold">Сохранить и войти</button>
       </form>
     </div>
+  )
+}
+
+// Основной экспорт, который оборачивает контент в Suspense
+export default function ResetPassword() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Загрузка...</div>}>
+      <ResetPasswordContent />
+    </Suspense>
   )
 }
