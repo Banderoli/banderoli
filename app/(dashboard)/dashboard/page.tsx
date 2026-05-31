@@ -3,325 +3,739 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { 
-  Package, 
-  Plane, 
-  AlertTriangle, 
-  CheckCircle, 
-  MessageCircle, 
-  Plus, 
-  Calculator,
-  Loader2,
-  Clock,
-  ShieldAlert,
-  CloudRain,
-  Cloud,
-  Sun
+import {
+  Package, Plane, AlertTriangle, CheckCircle, MessageCircle, Plus,
+  Calculator, Loader2, Clock, ShieldAlert, CloudRain, Cloud, Sun,
+  Weight, Store, Truck, User, Tag, QrCode, CalendarClock,
+  ChevronDown, ChevronUp, TrendingUp, Archive, Timer, CheckCircle2,
+  AlertCircle, ArrowUpCircle, Activity, Edit2, XCircle
 } from 'lucide-react'
 
-// Строгая типизация, соответствующая реальной базе данных (Neon/Prisma)
+// ═══════════════════════════════════════════════════════════
+// ТИПЫ
+// ═══════════════════════════════════════════════════════════
+
+type DeliveryStatus = 'on_time' | 'delayed' | 'early' | 'unknown'
+
 type Parcel = {
   id: string
   trackCode: string
   name: string
   value: number
+  weight?: number
   status: string
   updatedAt: string
+  shop?: string
+  carrier?: string
+  partner?: string
+  expectedDelivery?: string
+  hubWeatherRisk?: number    // 0–100
+  flightDelayRisk?: number   // 0–100
+  deliveryScheduleStatus?: DeliveryStatus
+  scheduleDeltaDays?: number // < 0 раньше, > 0 задержка
 }
+
+type WeatherIcon = 'clear' | 'clouds' | 'rain' | 'unknown'
+
+// ═══════════════════════════════════════════════════════════
+// КОНСТАНТЫ
+// ═══════════════════════════════════════════════════════════
+
+const PRICE_LIMIT  = 300   // ₾
+const WEIGHT_LIMIT = 30    // кг
+const VAT          = 0.18
+const CUSTOMS_FEE  = 20    // ₾
+
+// ═══════════════════════════════════════════════════════════
+// ДЕМО-ДАННЫЕ
+// ═══════════════════════════════════════════════════════════
+
+const DEMO: Parcel[] = [
+  {
+    id: 'd1', trackCode: 'CN123456789GE', name: 'Смартфон OnePlus 12',
+    value: 220, weight: 0.4, status: 'В пути', updatedAt: new Date().toISOString(),
+    shop: 'AliExpress', carrier: 'YunExpress', partner: 'Нино Берцхваладзе',
+    expectedDelivery: new Date(Date.now() + 3 * 86400000).toISOString(),
+    hubWeatherRisk: 18, flightDelayRisk: 30,
+    deliveryScheduleStatus: 'on_time', scheduleDeltaDays: 0,
+  },
+  {
+    id: 'd2', trackCode: 'US987654321GE', name: 'MacBook Air M3',
+    value: 1600, weight: 1.24, status: 'На таможне', updatedAt: new Date().toISOString(),
+    shop: 'Amazon US', carrier: 'DHL Express', partner: 'Давид Мамиашвили',
+    expectedDelivery: new Date(Date.now() - 2 * 86400000).toISOString(),
+    hubWeatherRisk: 62, flightDelayRisk: 75,
+    deliveryScheduleStatus: 'delayed', scheduleDeltaDays: 2,
+  },
+  {
+    id: 'd3', trackCode: 'TR555444333GE', name: 'Кроссовки Nike Air Max',
+    value: 78, weight: 0.9, status: 'Ожидается', updatedAt: new Date().toISOString(),
+    shop: 'ASOS', carrier: 'PostaGudan', partner: 'Тамара Кахиани',
+    expectedDelivery: new Date(Date.now() + 12 * 86400000).toISOString(),
+    hubWeatherRisk: 8, flightDelayRisk: 12,
+    deliveryScheduleStatus: 'early', scheduleDeltaDays: -2,
+  },
+]
+
+// ═══════════════════════════════════════════════════════════
+// УТИЛИТЫ
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Риск карточки = ТОЛЬКО погода + задержка рейса (50/50).
+ * Таможенные лимиты — отдельный блок, не смешиваются.
+ */
+function calcCardRisk(p: Parcel): number {
+  const w = p.hubWeatherRisk  ?? 0
+  const f = p.flightDelayRisk ?? 0
+  return Math.round((w + f) / 2)
+}
+
+function riskCls(pct: number) {
+  if (pct >= 75) return {
+    badge: 'bg-rose-50 text-rose-600 border-rose-200',
+    bar:   'bg-rose-400',
+  }
+  if (pct >= 45) return {
+    badge: 'bg-amber-50 text-amber-600 border-amber-200',
+    bar:   'bg-amber-400',
+  }
+  return {
+    badge: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+    bar:   'bg-emerald-400',
+  }
+}
+
+function scheduleUI(s?: DeliveryStatus, delta?: number) {
+  if (s === 'delayed') return {
+    cls:   'bg-rose-50 text-rose-700 border-rose-200',
+    icon:  <AlertCircle size={12}/>,
+    label: `Задержка${delta ? ` +${delta}д` : ''}`,
+  }
+  if (s === 'early') return {
+    cls:   'bg-violet-50 text-violet-700 border-violet-200',
+    icon:  <ArrowUpCircle size={12}/>,
+    label: `Раньше срока${delta ? ` ${Math.abs(delta)}д` : ''}`,
+  }
+  if (s === 'on_time') return {
+    cls:   'bg-emerald-50 text-emerald-700 border-emerald-200',
+    icon:  <CheckCircle2 size={12}/>,
+    label: 'По графику',
+  }
+  return {
+    cls:   'bg-slate-100 text-slate-500 border-slate-200',
+    icon:  <Timer size={12}/>,
+    label: 'Мониторинг…',
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ПОДКОМПОНЕНТ: строка риска в барометре
+// ═══════════════════════════════════════════════════════════
+
+function RiskRow({
+  icon, label, pct,
+}: { icon: React.ReactNode; label: string; pct: number }) {
+  const r = riskCls(pct)
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-xs font-bold
+                        flex-shrink-0 w-[3.5rem] justify-center ${r.badge}`}>
+        {icon}<span>{pct}%</span>
+      </span>
+      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-700 ${r.bar}`}
+             style={{ width: `${pct}%` }}/>
+      </div>
+      <span className="text-xs text-slate-400 w-32 text-right truncate">{label}</span>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════
+// ГЛАВНЫЙ КОМПОНЕНТ
+// ═══════════════════════════════════════════════════════════
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [parcels, setParcels] = useState<Parcel[]>([])
-  const [userName, setUserName] = useState('Пользователь')
-  const [loading, setLoading] = useState(true)
-  
-  // Состояние для реальной погоды
-  const [weather, setWeather] = useState({ temp: '--', condition: 'Загрузка...', icon: 'unknown' })
+  const [parcels,    setParcels]    = useState<Parcel[]>([])
+  const [userName,   setUserName]   = useState('Пользователь')
+  const [loading,    setLoading]    = useState(true)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [weather, setWeather] = useState<{
+    temp: string; condition: string; icon: WeatherIcon
+  }>({ temp: '--', condition: 'Загрузка…', icon: 'unknown' })
 
-  // Загрузка реальных данных из API
+  // ── Загрузка ─────────────────────────────────────────────
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    ;(async () => {
       try {
-        const [resParcels, resPartners] = await Promise.all([
+        const [rP, rPr] = await Promise.all([
           fetch('/api/parcels/get'),
-          fetch('/api/partners')
+          fetch('/api/partners'),
         ])
-
-        if (resParcels.ok) {
-          const dataParcels = await resParcels.json()
-          if (dataParcels.parcels) setParcels(dataParcels.parcels)
+        if (rP.ok) {
+          const d = await rP.json()
+          setParcels(d.parcels?.length ? d.parcels : DEMO)
+        } else {
+          setParcels(DEMO)
         }
-        
-        if (resPartners.ok) {
-          const dataPartners = await resPartners.json()
-          if (dataPartners.ownerName) setUserName(dataPartners.ownerName.split(' ')[0]) // Берем только имя
+        if (rPr.ok) {
+          const d = await rPr.json()
+          if (d.ownerName) setUserName(d.ownerName.split(' ')[0])
         }
-      } catch (error) {
-        console.error('Ошибка загрузки данных:', error)
+      } catch {
+        setParcels(DEMO)
       } finally {
         setLoading(false)
       }
-    }
+    })()
 
-    const fetchWeather = async () => {
+    ;(async () => {
       try {
-        const API_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || '558d45f34dad570eafe1838f24dcc922'
-        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Tbilisi&appid=${API_KEY}&units=metric&lang=ru`)
-        const data = await res.json()
-        
-        let icon = 'unknown'
-        if (data.weather[0].main === 'Clear') icon = 'clear'
-        else if (data.weather[0].main === 'Clouds') icon = 'clouds'
-        else if (['Rain', 'Drizzle', 'Thunderstorm'].includes(data.weather[0].main)) icon = 'rain'
-
+        const KEY = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || '558d45f34dad570eafe1838f24dcc922'
+        const d = await (
+          await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Tbilisi&appid=${KEY}&units=metric&lang=ru`)
+        ).json()
+        const m = d.weather?.[0]?.main ?? ''
         setWeather({
-          temp: `+${Math.round(data.main.temp)}°C`,
-          condition: data.weather[0].description,
-          icon
+          temp:      `+${Math.round(d.main.temp)}°C`,
+          condition: d.weather?.[0]?.description ?? '—',
+          icon:      m === 'Clear'   ? 'clear'
+                   : m === 'Clouds'  ? 'clouds'
+                   : ['Rain','Drizzle','Thunderstorm'].includes(m) ? 'rain'
+                   : 'unknown',
         })
       } catch {
         setWeather({ temp: 'N/A', condition: 'Ошибка сети', icon: 'unknown' })
       }
-    }
-
-    fetchDashboardData()
-    fetchWeather()
+    })()
   }, [])
 
-  // --- МАТЕМАТИКА: Таможенный лимит Грузии (300 ₾) ---
-  const activeParcels = useMemo(() => parcels.filter(p => p.status.toLowerCase() !== 'доставлено' && p.status.toLowerCase() !== 'утеряно'), [parcels])
-  const deliveredParcels = useMemo(() => parcels.filter(p => p.status.toLowerCase() === 'доставлено'), [parcels])
-  
-  const totalValueGEL = activeParcels.reduce((sum, p) => sum + Number(p.value || 0), 0)
-  const isCustomsRisk = totalValueGEL >= 300
-  const progressPercent = Math.min((totalValueGEL / 300) * 100, 100)
-  const customsTaxEst = isCustomsRisk ? (totalValueGEL * 0.18) + 20 : 0 // 18% НДС + 20 лари сбор
-
-  // UI Helpers
-  const getStatusUI = (status: string) => {
-    const s = status.toLowerCase()
-    if (s === 'доставлено') return { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle size={14} /> }
-    if (s === 'на таможне' || s === 'таможня') return { color: 'bg-rose-100 text-rose-700 border-rose-200', icon: <AlertTriangle size={14} /> }
-    if (s === 'в пути') return { color: 'bg-blue-100 text-blue-700 border-blue-200', icon: <Plane size={14} /> }
-    return { color: 'bg-amber-100 text-amber-700 border-amber-200', icon: <Clock size={14} /> } // Ожидается
+  // ── Обработчики действий (Заглушки для будущего API) ─────
+  const handleAction = (e: React.MouseEvent, action: string, id: string) => {
+    e.stopPropagation() // чтобы карточка не сворачивалась при клике на кнопку
+    console.log(`Action: ${action}, Parcel ID: ${id}`)
+    // Здесь позже добавим вызовы API: fetch(`/api/parcels/${id}`, { method: 'PATCH', ... })
   }
 
-  const renderWeatherIcon = () => {
-    if (weather.icon === 'clear') return <Sun size={28} className="text-amber-300" />
-    if (weather.icon === 'clouds') return <Cloud size={28} className="text-white" />
-    if (weather.icon === 'rain') return <CloudRain size={28} className="text-blue-200" />
-    return <Cloud size={28} className="text-white/50" />
+  // ── Математика ───────────────────────────────────────────
+
+  const active    = useMemo(() =>
+    parcels.filter(p => !['доставлено','утеряно'].includes(p.status.toLowerCase())),
+    [parcels]
+  )
+  const delivered = useMemo(() =>
+    parcels.filter(p => p.status.toLowerCase() === 'доставлено'),
+    [parcels]
+  )
+  const inTransit = useMemo(() =>
+    active.filter(p => p.status.toLowerCase() === 'в пути'),
+    [active]
+  )
+
+  const totalVal = useMemo(() =>
+    active.reduce((s, p) => s + Number(p.value  ?? 0), 0), [active])
+  const totalWt  = useMemo(() =>
+    active.reduce((s, p) => s + Number(p.weight ?? 0), 0), [active])
+
+  // Таможенные лимиты: жёсткие пороги — либо 100%, либо пропорция
+  const valPct  = Math.min((totalVal / PRICE_LIMIT)  * 100, 100)
+  const wtPct   = Math.min((totalWt  / WEIGHT_LIMIT) * 100, 100)
+  const valOver = totalVal >= PRICE_LIMIT   // => 100% риск по цене
+  const wtOver  = totalWt  >= WEIGHT_LIMIT  // => 100% риск по весу
+  const anyRisk = valOver || wtOver
+  const taxEst  = valOver ? totalVal * VAT + CUSTOMS_FEE : 0
+
+  // Средние по погоде/рейсам для барометра
+  const avgWeather = active.length
+    ? Math.round(active.reduce((s, p) => s + (p.hubWeatherRisk  ?? 0), 0) / active.length) : 0
+  const avgDelay   = active.length
+    ? Math.round(active.reduce((s, p) => s + (p.flightDelayRisk ?? 0), 0) / active.length) : 0
+
+  // ── Хелперы статуса ──────────────────────────────────────
+
+  const getStatusUI = (st: string) => {
+    const s = st.toLowerCase()
+    if (s === 'доставлено')
+      return { cls: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle size={13}/> }
+    if (s === 'на таможне' || s === 'таможня')
+      return { cls: 'bg-rose-100 text-rose-700 border-rose-200',          icon: <AlertTriangle size={13}/> }
+    if (s === 'в пути')
+      return { cls: 'bg-blue-100 text-blue-700 border-blue-200',          icon: <Plane size={13}/> }
+    return   { cls: 'bg-amber-100 text-amber-700 border-amber-200',       icon: <Clock size={13}/> }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-500 gap-4">
-        <Loader2 className="animate-spin text-indigo-600" size={32} />
-        <p className="font-medium">Синхронизация с серверами логистики...</p>
-      </div>
-    )
+  const WIcon = () => {
+    if (weather.icon === 'clear')  return <Sun       size={26} className="text-amber-300"/>
+    if (weather.icon === 'clouds') return <Cloud     size={26} className="text-white"/>
+    if (weather.icon === 'rain')   return <CloudRain size={26} className="text-blue-200"/>
+    return <Cloud size={26} className="text-white/50"/>
   }
 
+  // ── Загрузочный экран ────────────────────────────────────
+
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+      <Loader2 className="animate-spin text-indigo-600" size={32}/>
+      <p className="text-slate-500 font-medium">Синхронизация с серверами логистики…</p>
+    </div>
+  )
+
+  // ════════════════════════════════════════════════════════
+  // RENDER
+  // ════════════════════════════════════════════════════════
   return (
-    <div className="min-h-screen bg-slate-50 py-6 px-4 md:px-8 animate-fade-in">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* Шапка дашборда */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
-          <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Привет, {userName}! 👋</h1>
-            <p className="text-slate-500 mt-1 font-medium">Контроль логистики и таможенных лимитов</p>
-          </div>
-          <button 
-            onClick={() => router.push('/dashboard/add')}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
-          >
-            <Plus size={20} />
-            Добавить трек
-          </button>
-        </header>
+    <>
+      <style>{`
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(12px) }
+          to   { opacity: 1; transform: none }
+        }
+        .fade-up   { animation: fadeUp .4s ease both }
+        .fade-up-1 { animation: fadeUp .4s .08s ease both }
+        .fade-up-2 { animation: fadeUp .4s .16s ease both }
+        .fade-up-3 { animation: fadeUp .4s .24s ease both }
 
-        {/* Сетка статистики (Виджеты) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-5 transition-transform hover:scale-[1.02]">
-            <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl"><Package size={28} /></div>
-            <div>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Ожидается</p>
-              <p className="text-3xl font-black text-slate-900">{activeParcels.length}</p>
-            </div>
-          </div>
+        /* Видимость текста в полях на мобильных */
+        input, textarea, select, [contenteditable] {
+          color: #1e293b !important;
+          -webkit-text-fill-color: #1e293b !important;
+          background-color: #ffffff !important;
+          opacity: 1 !important;
+        }
+        ::placeholder { color: #94a3b8 !important; opacity: 1 !important; }
 
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-5 transition-transform hover:scale-[1.02]">
-            <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl"><Plane size={28} /></div>
+        .card-hover { transition: box-shadow .18s, transform .18s }
+        .card-hover:hover {
+          box-shadow: 0 8px 32px -4px rgba(99,102,241,.13);
+          transform: translateY(-1px);
+        }
+      `}</style>
+
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 py-6 px-4 md:px-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+
+          {/* ══ ШАПКА ═══════════════════════════════════════════ */}
+          <header className="fade-up flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4
+                             bg-white/80 backdrop-blur-sm p-6 sm:p-8 rounded-3xl border border-white shadow-sm">
             <div>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">В пути (Транзит)</p>
-              <p className="text-3xl font-black text-slate-900">
-                {activeParcels.filter(p => p.status.toLowerCase() === 'в пути').length}
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                Привет, {userName}! 👋
+              </h1>
+              <p className="text-slate-400 mt-1 text-sm font-medium">
+                Логистика · Таможня · Риски
               </p>
             </div>
-          </div>
+            <button
+              onClick={() => router.push('/dashboard/add')}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800
+                         text-white px-5 py-3 rounded-2xl font-bold transition-all shadow-md
+                         hover:shadow-indigo-200 hover:shadow-lg text-sm w-full sm:w-auto justify-center"
+            >
+              <Plus size={18}/>Добавить трек
+            </button>
+          </header>
 
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-5 transition-transform hover:scale-[1.02]">
-            <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><CheckCircle size={28} /></div>
-            <div>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Доставлено</p>
-              <p className="text-3xl font-black text-slate-900">{deliveredParcels.length}</p>
-            </div>
-          </div>
+          {/* ══ ВИДЖЕТЫ ══════════════════════════════════════════ */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 fade-up-1">
 
-          {/* Виджет погоды (Тбилиси) */}
-          <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-3xl shadow-md text-white flex items-center gap-5 relative overflow-hidden transition-transform hover:scale-[1.02]">
-            <div className="absolute -right-4 -top-4 opacity-20">
-              <CloudRain size={100} />
-            </div>
-            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm z-10">
-              {renderWeatherIcon()}
-            </div>
-            <div className="z-10">
-              <p className="text-xs text-cyan-100 font-bold uppercase tracking-wider">Аэропорт Тбилиси</p>
-              <div className="flex items-end gap-2">
-                <p className="text-3xl font-black">{weather.temp}</p>
+            <div className="card-hover bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-3xl
+                            border border-white shadow-sm flex items-center gap-3 sm:gap-4">
+              <div className="p-3 bg-blue-50 text-blue-500 rounded-2xl flex-shrink-0">
+                <Package size={22}/>
               </div>
-              <p className="text-[10px] text-cyan-50 capitalize mt-0.5">{weather.condition}</p>
+              <div>
+                <p className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wide">Ожидается</p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900">{active.length}</p>
+              </div>
+            </div>
+
+            <div className="card-hover bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-3xl
+                            border border-white shadow-sm flex items-center gap-3 sm:gap-4">
+              <div className="p-3 bg-indigo-50 text-indigo-500 rounded-2xl flex-shrink-0">
+                <Plane size={22}/>
+              </div>
+              <div>
+                <p className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wide">В пути</p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900">{inTransit.length}</p>
+              </div>
+            </div>
+
+            <div className="card-hover bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-3xl
+                            border border-white shadow-sm flex items-center gap-3 sm:gap-4">
+              <div className="p-3 bg-emerald-50 text-emerald-500 rounded-2xl flex-shrink-0">
+                <CheckCircle size={22}/>
+              </div>
+              <div>
+                <p className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wide">Доставлено</p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900">{delivered.length}</p>
+              </div>
+            </div>
+
+            {/* Погода */}
+            <div className="card-hover bg-gradient-to-br from-cyan-500 to-blue-600 p-4 sm:p-6 rounded-3xl
+                            shadow-md text-white flex items-center gap-3 sm:gap-4 relative overflow-hidden
+                            col-span-2 lg:col-span-1">
+              <div className="absolute -right-4 -top-4 opacity-15"><CloudRain size={90}/></div>
+              <div className="p-2.5 bg-white/20 rounded-2xl backdrop-blur-sm flex-shrink-0 z-10">
+                <WIcon/>
+              </div>
+              <div className="z-10 min-w-0">
+                <p className="text-[10px] sm:text-xs text-cyan-100 font-bold uppercase tracking-wide">Тбилиси · Хаб</p>
+                <p className="text-2xl sm:text-3xl font-black leading-none">{weather.temp}</p>
+                <p className="text-[10px] text-cyan-100 capitalize truncate mt-0.5">{weather.condition}</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Главная колонка: Список посылок */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[400px]">
-              <div className="p-6 md:p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <h2 className="text-xl font-extrabold text-slate-900">Активные грузы</h2>
-                <Link href="/archive" className="text-sm text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1 transition-colors">
-                  Смотреть архив &rarr;
-                </Link>
-              </div>
-              
-              <div className="divide-y divide-slate-100">
-                {activeParcels.length === 0 ? (
+          {/* ══ ОСНОВНАЯ СЕТКА ═══════════════════════════════════ */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 fade-up-2">
+
+            {/* ── ПОСЫЛКИ ─────────────────────────────────────── */}
+            <div className="lg:col-span-2">
+              <div className="bg-white/90 backdrop-blur-sm rounded-3xl border border-white shadow-sm overflow-hidden">
+
+                <div className="px-5 sm:px-7 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                  <h2 className="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                    <Activity size={18} className="text-indigo-500"/>
+                    Активные грузы
+                  </h2>
+                  <Link href="/archive"
+                    className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1">
+                    <Archive size={13}/>Архив
+                  </Link>
+                </div>
+
+                {active.length === 0 ? (
                   <div className="p-16 flex flex-col items-center text-center text-slate-400">
-                    <div className="p-4 bg-slate-50 rounded-full mb-4">
-                      <Package size={48} className="text-slate-300" />
+                    <div className="p-5 bg-slate-50 rounded-full mb-4">
+                      <Package size={40} className="text-slate-300"/>
                     </div>
-                    <p className="font-bold text-lg text-slate-600 mb-1">Нет активных посылок</p>
-                    <p className="text-sm">Все ваши отправления доставлены или еще не добавлены.</p>
+                    <p className="font-bold text-slate-600 mb-1">Нет активных посылок</p>
+                    <p className="text-sm">Все отправления доставлены или ещё не добавлены.</p>
                   </div>
                 ) : (
-                  activeParcels.map((parcel) => {
-                    const statusUI = getStatusUI(parcel.status)
-                    return (
-                      <div key={parcel.id} className="p-6 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group cursor-pointer">
-                        <div className="flex items-start gap-4">
-                          <div className={`mt-1 p-2.5 rounded-xl border ${statusUI.color} bg-opacity-50`}>
-                            {statusUI.icon}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-3 mb-1">
-                              <p className="font-bold text-slate-900 text-lg group-hover:text-indigo-600 transition-colors">{parcel.name}</p>
+                  <div className="divide-y divide-slate-100">
+                    {active.map(parcel => {
+                      const stUI  = getStatusUI(parcel.status)
+                      const sched = scheduleUI(parcel.deliveryScheduleStatus, parcel.scheduleDeltaDays)
+                      const risk  = calcCardRisk(parcel)   // только погода + рейс
+                      const rc    = riskCls(risk)
+                      const open  = expandedId === parcel.id
+
+                      return (
+                        <div key={parcel.id}>
+
+                          {/* Строка превью */}
+                          <div
+                            className="px-5 sm:px-7 py-4 hover:bg-slate-50/80 transition-colors cursor-pointer"
+                            onClick={() => setExpandedId(open ? null : parcel.id)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+
+                              {/* Левая часть */}
+                              <div className="flex items-start gap-3 min-w-0">
+                                <div className={`mt-0.5 p-2 rounded-xl border flex-shrink-0 ${stUI.cls}`}>
+                                  {stUI.icon}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-900 text-sm sm:text-base truncate leading-snug">
+                                    {parcel.name}
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                                    <span className="text-xs font-mono text-slate-400 bg-slate-100
+                                                     px-1.5 py-0.5 rounded select-all">
+                                      {parcel.trackCode}
+                                    </span>
+                                    <span className="text-xs text-slate-400">{Number(parcel.value).toFixed(2)} ₾</span>
+                                    {parcel.weight != null &&
+                                      <span className="text-xs text-slate-400">{parcel.weight} кг</span>}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Правая часть — бейджи */}
+                              <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                                {/* Статус */}
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg
+                                                  text-xs font-bold border ${stUI.cls}`}>
+                                  {parcel.status}
+                                </span>
+                                {/* График */}
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg
+                                                  text-xs font-semibold border ${sched.cls}`}>
+                                  {sched.icon}{sched.label}
+                                </span>
+                                {/* Риск (погода + рейс) */}
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg
+                                                  text-xs font-bold border ${rc.badge}`}>
+                                  ⚠ {risk}%
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded select-all">{parcel.trackCode}</span>
-                              <span className="text-xs text-slate-400 font-medium">• {Number(parcel.value).toFixed(2)} ₾</span>
+
+                            <div className="flex justify-end mt-1.5">
+                              <span className="text-slate-300 hover:text-indigo-400 transition-colors">
+                                {open ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
+                              </span>
                             </div>
                           </div>
+
+                          {/* Раскрытая карточка */}
+                          {open && (
+                            <div className="px-5 sm:px-7 pb-5">
+                              <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-4">
+
+                                {/* Детали */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                  {([
+                                    parcel.shop     && { icon: <Store size={13}/>,       label: 'Магазин',      val: parcel.shop },
+                                    parcel.carrier  && { icon: <Truck size={13}/>,       label: 'Перевозчик',    val: parcel.carrier },
+                                    parcel.partner  && { icon: <User size={13}/>,        label: 'Покупатель',    val: parcel.partner },
+                                                        { icon: <Tag size={13}/>,        label: 'Цена товара',   val: `${Number(parcel.value).toFixed(2)} ₾` },
+                                    parcel.weight != null && { icon: <Weight size={13}/>, label: 'Вес посылки',  val: `${parcel.weight} кг` },
+                                                        { icon: <QrCode size={13}/>,     label: 'Трек-код',      val: parcel.trackCode, mono: true },
+                                    parcel.expectedDelivery && {
+                                      icon: <CalendarClock size={13}/>, label: 'Ожид. доставка',
+                                      val:  new Date(parcel.expectedDelivery).toLocaleDateString('ru-RU', {
+                                            day: '2-digit', month: 'short', year: 'numeric',
+                                          }),
+                                    },
+                                  ] as const).filter(Boolean).map((f: any, i) => (
+                                    <div key={i} className="flex items-start gap-2">
+                                      <span className="text-indigo-400 mt-0.5 flex-shrink-0">{f.icon}</span>
+                                      <div className="min-w-0">
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">
+                                          {f.label}
+                                        </p>
+                                        <p className={`text-sm font-semibold text-slate-700 leading-snug truncate
+                                                        ${f.mono ? 'font-mono text-xs' : ''}`}>
+                                          {f.val}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Риски внутри карточки: только погода и рейс */}
+                                <div className="space-y-2 pt-1 border-t border-slate-200">
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide mb-2">
+                                    Операционные риски
+                                  </p>
+                                  {(parcel.hubWeatherRisk ?? 0) > 0 && (
+                                    <RiskRow
+                                      icon={<CloudRain size={11}/>}
+                                      label="Погода в хабе"
+                                      pct={parcel.hubWeatherRisk!}
+                                    />
+                                  )}
+                                  {(parcel.flightDelayRisk ?? 0) > 0 && (
+                                    <RiskRow
+                                      icon={<Plane size={11}/>}
+                                      label="Задержка рейса"
+                                      pct={parcel.flightDelayRisk!}
+                                    />
+                                  )}
+                                </div>
+
+                                {/* Обновлено (Таймстемп) */}
+                                <p className="text-[10px] text-slate-400 text-right">
+                                  Обновлено: {new Date(parcel.updatedAt).toLocaleString('ru-RU')}
+                                </p>
+
+                                {/* ── НОВЫЕ КНОПКИ ДЕЙСТВИЙ ─────────────────────── */}
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4 pt-4 border-t border-slate-200/60">
+                                  <button 
+                                    onClick={(e) => handleAction(e, 'delivered', parcel.id)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
+                                  >
+                                    <CheckCircle2 size={14} /> Доставлено
+                                  </button>
+                                  <button 
+                                    onClick={(e) => handleAction(e, 'lost', parcel.id)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors"
+                                  >
+                                    <XCircle size={14} /> Утеряно
+                                  </button>
+                                  <button 
+                                    onClick={(e) => handleAction(e, 'edit', parcel.id)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors"
+                                  >
+                                    <Edit2 size={14} /> Изменить
+                                  </button>
+                                  
+                                  {/* Кнопка "В архив" сдвинута вправо на больших экранах */}
+                                  <button 
+                                    onClick={(e) => handleAction(e, 'archive', parcel.id)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-bold transition-colors sm:ml-auto"
+                                  >
+                                    <Archive size={14} /> В архив
+                                  </button>
+                                </div>
+                                {/* ──────────────────────────────────────────────── */}
+                                
+                              </div>
+                            </div>
+                          )}
+
                         </div>
-                        
-                        <div className="text-left sm:text-right w-full sm:w-auto pl-14 sm:pl-0">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide border ${statusUI.color}`}>
-                            {parcel.status}
-                          </span>
-                          <p className="text-[10px] text-slate-400 mt-2 font-medium uppercase">
-                            Обновлено: {new Date(parcel.updatedAt).toLocaleDateString('ru-RU')}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             </div>
-          </div>
 
-          {/* Правая колонка: Математика, Лимиты и Интеграции */}
-          <div className="space-y-6">
-            
-            {/* Таможенный калькулятор (Математика B2B) */}
-            <div className={`bg-white p-6 md:p-8 rounded-3xl shadow-sm border transition-colors ${isCustomsRisk ? 'border-rose-300 bg-rose-50/30' : 'border-slate-100'}`}>
-              <div className="flex items-center gap-3 mb-6">
-                <div className={`p-3 rounded-2xl ${isCustomsRisk ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600'}`}>
-                  <Calculator size={24} />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900">Таможенный лимит</h3>
-                  <p className="text-xs text-slate-500 font-medium uppercase">Закон Грузии (300 ₾)</p>
-                </div>
-              </div>
-              
-              <div className="space-y-5">
-                <div>
-                  <div className="flex justify-between items-end mb-2">
-                    <span className="text-slate-500 font-medium text-sm">Сумма в пути</span>
-                    <span className={`text-2xl font-black ${isCustomsRisk ? 'text-rose-600' : 'text-slate-900'}`}>
-                      {totalValueGEL.toFixed(2)} <span className="text-sm text-slate-400 font-bold">/ 300 ₾</span>
-                    </span>
+            {/* ── ПРАВАЯ КОЛОНКА ──────────────────────────────── */}
+            <div className="space-y-4 fade-up-3">
+
+              {/* ТАМОЖЕННЫЙ КАЛЬКУЛЯТОР */}
+              <div className={`bg-white/90 backdrop-blur-sm p-5 sm:p-6 rounded-3xl border shadow-sm transition-colors
+                              ${anyRisk ? 'border-rose-200 bg-rose-50/20' : 'border-white'}`}>
+                <div className="flex items-center gap-3 mb-5">
+                  <div className={`p-2.5 rounded-2xl
+                                  ${anyRisk ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500'}`}>
+                    <Calculator size={20}/>
                   </div>
-                  {/* Прогресс-бар лимита */}
-                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-1000 ${isCustomsRisk ? 'bg-rose-500' : 'bg-indigo-500'}`}
-                      style={{ width: `${progressPercent}%` }}
-                    ></div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-sm">Таможенный лимит</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Закон Грузии</p>
                   </div>
                 </div>
 
-                {isCustomsRisk ? (
-                  <div className="p-4 bg-white rounded-2xl border border-rose-200 shadow-sm flex items-start gap-3 text-rose-800 text-sm">
-                    <ShieldAlert size={20} className="mt-0.5 flex-shrink-0 text-rose-500" />
-                    <div>
-                      <p className="font-black">Превышен лимит</p>
-                      <p className="mt-1 text-xs opacity-90 font-medium leading-relaxed">
-                        Груз облагается налогом. Ожидаемая пошлина: <span className="font-bold underline">~{customsTaxEst.toFixed(2)} ₾</span>. Подготовьте инвойсы для растаможки.
+                <div className="space-y-4">
+
+                  {/* ── Ценовой лимит ── */}
+                  <div>
+                    <div className="flex justify-between items-end mb-1.5">
+                      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                        <Tag size={11}/>Сумма активных
+                      </span>
+                      <span className={`text-lg font-black leading-none
+                                        ${valOver ? 'text-rose-600' : 'text-slate-900'}`}>
+                        {totalVal.toFixed(0)}
+                        <span className="text-xs text-slate-400 font-semibold ml-1">/ {PRICE_LIMIT} ₾</span>
+                      </span>
+                    </div>
+                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000
+                                    ${valOver ? 'bg-rose-500' : 'bg-indigo-500'}`}
+                        style={{ width: `${valPct}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between mt-0.5">
+                      <span className="text-[10px] text-slate-400">0 ₾</span>
+                      <span className={`text-[10px] font-bold
+                                        ${valOver ? 'text-rose-500' : 'text-slate-400'}`}>
+                        {valOver ? '100% — лимит превышен!' : `${valPct.toFixed(0)}%`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ── Весовой лимит ── */}
+                  <div>
+                    <div className="flex justify-between items-end mb-1.5">
+                      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                        <Weight size={11}/>Вес активных
+                      </span>
+                      <span className={`text-lg font-black leading-none
+                                        ${wtOver ? 'text-rose-600' : 'text-slate-900'}`}>
+                        {totalWt.toFixed(2)}
+                        <span className="text-xs text-slate-400 font-semibold ml-1">/ {WEIGHT_LIMIT} кг</span>
+                      </span>
+                    </div>
+                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000
+                                    ${wtOver ? 'bg-rose-500' : 'bg-teal-500'}`}
+                        style={{ width: `${wtPct}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between mt-0.5">
+                      <span className="text-[10px] text-slate-400">0 кг</span>
+                      <span className={`text-[10px] font-bold
+                                        ${wtOver ? 'text-rose-500' : 'text-slate-400'}`}>
+                        {wtOver ? '100% — лимит превышен!' : `${wtPct.toFixed(0)}%`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Итоговый статус */}
+                  {anyRisk ? (
+                    <div className="p-3.5 bg-white rounded-2xl border border-rose-200 flex items-start gap-3">
+                      <ShieldAlert size={17} className="text-rose-500 flex-shrink-0 mt-0.5"/>
+                      <div>
+                        <p className="font-black text-rose-800 text-sm">Лимит превышен!</p>
+                        {valOver && (
+                          <p className="text-xs text-rose-700 mt-0.5 leading-snug">
+                            Цена &gt;300 ₾ — пошлина ~<strong>{taxEst.toFixed(0)} ₾</strong>{' '}
+                            (НДС 18% + сбор 20 ₾). Подготовьте инвойсы.
+                          </p>
+                        )}
+                        {wtOver && (
+                          <p className="text-xs text-rose-700 mt-0.5 leading-snug">
+                            Вес &gt;30 кг — возможна задержка и доп. проверка на таможне.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
+                      <CheckCircle size={17} className="text-emerald-500 flex-shrink-0"/>
+                      <p className="text-xs text-slate-600 font-medium">
+                        Беспошлинный порог не превышен.
                       </p>
                     </div>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
-                    <CheckCircle size={20} className="text-emerald-500 flex-shrink-0" />
-                    <p className="text-sm text-slate-600 font-medium">
-                      Всё в порядке. Вы не превышаете беспошлинный порог.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Интеграция с Telegram */}
-            <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 md:p-8 rounded-3xl shadow-md text-white relative overflow-hidden group">
-              <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-110 transition-transform duration-500">
-                <MessageCircle size={140} />
-              </div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-                    <MessageCircle size={24} />
-                  </div>
-                  <h3 className="font-extrabold text-lg tracking-tight">Telegram-бот</h3>
+                  )}
                 </div>
-                <p className="text-indigo-100 text-sm mb-6 font-medium leading-relaxed">
-                  Получайте мгновенные пуш-уведомления о смене статуса посылок и критических рисках растаможки.
-                </p>
-                <button className="w-full bg-white text-indigo-700 hover:bg-indigo-50 py-3.5 rounded-xl font-black text-sm transition-all shadow-sm hover:shadow-md">
-                  Подключить уведомления
-                </button>
               </div>
-            </div>
 
-          </div>
+              {/* БАРОМЕТР ОПЕРАЦИОННЫХ РИСКОВ (только погода + рейсы) */}
+              <div className="bg-white/90 backdrop-blur-sm p-5 sm:p-6 rounded-3xl border border-white shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2.5 bg-amber-50 text-amber-500 rounded-2xl">
+                    <TrendingUp size={18}/>
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-sm">Барометр рисков</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Погода · Рейсы</p>
+                  </div>
+                </div>
+                <div className="space-y-2.5">
+                  <RiskRow icon={<CloudRain size={11}/>} label="Погода в хабах"  pct={avgWeather}/>
+                  <RiskRow icon={<Plane size={11}/>}     label="Задержки рейсов" pct={avgDelay}/>
+                </div>
+              </div>
+
+              {/* TELEGRAM */}
+              <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-5 sm:p-6 rounded-3xl
+                              shadow-md text-white relative overflow-hidden group">
+                <div className="absolute -right-5 -bottom-5 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                  <MessageCircle size={120}/>
+                </div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                      <MessageCircle size={20}/>
+                    </div>
+                    <h3 className="font-extrabold text-base">Telegram-бот</h3>
+                  </div>
+                  <p className="text-indigo-100 text-xs mb-5 leading-relaxed font-medium">
+                    Мгновенные уведомления о статусах, таможенных рисках и задержках рейсов.
+                  </p>
+                  <button className="w-full bg-white text-indigo-700 hover:bg-indigo-50 py-3 rounded-2xl
+                                     font-black text-sm transition-all shadow-sm hover:shadow-md">
+                    Подключить уведомления
+                  </button>
+                </div>
+              </div>
+
+            </div>{/* /right col */}
+          </div>{/* /main grid */}
         </div>
       </div>
-    </div>
+    </>
   )
 }
