@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-// Выносим всю логику с searchParams в отдельный компонент
+// Компонент, содержащий всю логику работы с параметрами и формой
 function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -30,23 +30,23 @@ function ResetPasswordContent() {
   if (!token) return <p className="text-center mt-10">Неверная ссылка</p>
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-sm border max-w-md w-full space-y-4">
-      <h1 className="text-2xl font-bold text-center">Новый пароль</h1>
-      {error && <p className="text-center text-red-600 text-sm font-bold">{error}</p>}
-      <input required type="password" placeholder="Новый пароль" className="w-full p-3 border rounded-lg" value={password} onChange={e => setPassword(e.target.value)} />
-      <input required type="password" placeholder="Подтвердите пароль" className="w-full p-3 border rounded-lg" value={confirm} onChange={e => setConfirm(e.target.value)} />
-      <button type="submit" className="w-full bg-green-600 text-white p-3 rounded-lg font-bold">Сохранить и войти</button>
-    </form>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-sm border max-w-md w-full space-y-4">
+        <h1 className="text-2xl font-bold text-center">Новый пароль</h1>
+        {error && <p className="text-center text-red-600 text-sm font-bold">{error}</p>}
+        <input required type="password" placeholder="Новый пароль" className="w-full p-3 border rounded-lg" value={password} onChange={e => setPassword(e.target.value)} />
+        <input required type="password" placeholder="Подтвердите пароль" className="w-full p-3 border rounded-lg" value={confirm} onChange={e => setConfirm(e.target.value)} />
+        <button type="submit" className="w-full bg-green-600 text-white p-3 rounded-lg font-bold">Сохранить и войти</button>
+      </form>
+    </div>
   )
 }
 
-// Оборачиваем страницу в Suspense — это "щит" для Next.js
+// Основной экспорт, который оборачивает контент в Suspense
 export default function ResetPassword() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <Suspense fallback={<div className="text-center">Загрузка...</div>}>
-        <ResetPasswordContent />
-      </Suspense>
-    </div>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Загрузка...</div>}>
+      <ResetPasswordContent />
+    </Suspense>
   )
 }
