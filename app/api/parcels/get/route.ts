@@ -1,45 +1,34 @@
-// app/api/parcels/get/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../../lib/prisma';
-import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
-import { calculateAdvancedRisk } from '../../../../lib/intelligence/risk-engine';
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { jwtVerify } from 'jose'
+import { cookies } from 'next/headers'
 
-async function getUserId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('token')?.value;
-  if (!token) return null;
+export async function GET(req: Request) {
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'parcelge-secret-key');
-    const { payload } = await jwtVerify(token, secret);
-    return payload.userId as string;
-  } catch { return null; }
-}
+    const cookieStore = await cookies()
+    const token = cookieStore.get('token')?.value
 
-export async function GET(req: NextRequest) {
-  try {
-    const userId = await getUserId();
-    if (!userId) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
+    if (!token) {
+      return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
+    }
+
+    // 1. Преобразуем строку секрета в Uint8Array
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'parcelge-secret-key')
+
+    // 2. Используем правильную переменную для результата (payload вместо decoded)
+    const { payload } = await jwtVerify(token, secret)
+    
+    // 3. Теперь payload.userId доступен
+    const userId = payload.userId as string
 
     const parcels = await prisma.parcel.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' }
-    });
+    })
 
-    const activeParcels = parcels.filter(p => p.status !== 'доставлено' && p.status !== 'утеряно');
-    
-    // Прогоняем активные посылки через AI Engine
-    const parcelsWithIntelligence = await Promise.all(parcels.map(async (parcel) => {
-      if (parcel.status === 'доставлено' || parcel.status === 'утеряно') {
-        return { ...parcel, aiAnalysis: null };
-      }
-      const analysis = await calculateAdvancedRisk(parcel, activeParcels);
-      return { ...parcel, aiAnalysis: analysis };
-    }));
-
-    return NextResponse.json({ parcels: parcelsWithIntelligence });
+    return NextResponse.json({ parcels })
   } catch (error) {
-    console.error('Ошибка GET /api/parcels/get:', error);
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+    console.error('Ошибка получения:', error)
+    return NextResponse.json({ parcels: [] }, { status: 500 })
   }
 }
