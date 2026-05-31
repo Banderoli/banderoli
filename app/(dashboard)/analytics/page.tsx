@@ -33,8 +33,10 @@ interface WeatherInfo {
   hub: string; 
   temp: string; 
   condition: string; 
+  // Убедись, что типы совпадают с тем, что возвращает функция
   iconType: 'clear' | 'clouds' | 'rain' | 'unknown'; 
 }
+
 
 export default function AnalyticsPage() {
   const [parcels, setParcels] = useState<Parcel[]>([])
@@ -93,9 +95,16 @@ export default function AnalyticsPage() {
             condition: data.weather[0].description,
             iconType
           };
-        } catch {
-          return { hub: city, temp: 'N/A', condition: 'Связь потеряна', iconType: 'unknown' };
-        }
+        // ... внутри блока catch
+} catch {
+  // Исправление: явно указываем тип 'unknown'
+  return { 
+    hub: city, 
+    temp: 'N/A', 
+    condition: 'Связь потеряна', 
+    iconType: 'unknown' as 'unknown' 
+  };
+}
       }));
       setWeatherData(weatherResults);
     };
