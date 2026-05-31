@@ -78,13 +78,14 @@ export default function AnalyticsPage() {
 
     // Загрузка погоды логистических хабов
     const fetchWeather = async () => {
-      const weatherResults = await Promise.all(CITIES.map(async (city) => {
+      const weatherResults = await Promise.all(CITIES.map(async (city): Promise<WeatherInfo> => {
         try {
           const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric&lang=ru`);
-          if (!res.ok) throw new Error('Weather API Error')
+          if (!res.ok) throw new Error('Weather API Error');
           const data = await res.json();
           
-          let iconType: 'clear' | 'clouds' | 'rain' | 'unknown' = 'unknown';
+          // Определяем иконку строго по типам
+          let iconType: WeatherInfo['iconType'] = 'unknown';
           if (data.weather[0].main === 'Clear') iconType = 'clear';
           else if (data.weather[0].main === 'Clouds') iconType = 'clouds';
           else if (['Rain', 'Drizzle', 'Thunderstorm'].includes(data.weather[0].main)) iconType = 'rain';
@@ -95,17 +96,14 @@ export default function AnalyticsPage() {
             condition: data.weather[0].description,
             iconType
           };
-        // ... внутри блока catch
-// Найди этот блок внутри функции fetchWeather
-} catch {
-  return { 
-    hub: city, 
-    temp: 'N/A', 
-    condition: 'Связь потеряна', 
-    // Явно указываем тип 'unknown' с помощью оператора as
-    iconType: 'unknown' as 'clear' | 'clouds' | 'rain' | 'unknown' 
-  };
-}
+        } catch {
+          return { 
+            hub: city, 
+            temp: 'N/A', 
+            condition: 'Связь потеряна', 
+            iconType: 'unknown' // Теперь тип строго соответствует WeatherInfo
+          };
+        }
       }));
       setWeatherData(weatherResults);
     };
