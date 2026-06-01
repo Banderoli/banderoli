@@ -1,54 +1,52 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
-import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-async function getUserId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('token')?.value;
-  if (!token) return null;
+export async function POST(req: Request) {
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'parcelge-secret-key');
-    const { payload } = await jwtVerify(token, secret);
-    return payload.userId as string;
-  } catch { return null; }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const userId = await getUserId();
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
     const body = await req.json();
+    
+    // Валидация
+    if (!body.trackCode || !body.name || body.value === undefined) {
+      return NextResponse.json({ message: "Не заполнены обязательные поля" }, { status: 400 });
+    }
 
-    const safeValue = typeof body.value === 'string' 
-        ? parseFloat(body.value.replace(',', '.')) 
-        : (body.value || 0);
-        
-    const safeWeight = body.weight 
-        ? parseFloat(String(body.weight).replace(',', '.')) 
-        : null;
+    // Ищем партнера по имени, чтобы привязать посылку к нужному лимиту
+    let partnerId = null;
+    let recipientName = "Владелец";
 
+    if (body.partner && body.partner.trim() !== '') {
+      const partner = await prisma.partner.findFirst({
+        where: { name: { equals: body.partner.trim(), mode: 'insensitive' } }
+      });
+      if (partner) {
+        partnerId = partner.id;
+        recipientName = partner.name;
+      } else {
+        recipientName = body.partner; // Если не нашли в базе, просто пишем имя
+      }
+    }
+
+    // Создание в БД
     const newParcel = await prisma.parcel.create({
       data: {
         trackCode: body.trackCode,
         name: body.name,
+        value: Number(body.value),
+        weight: body.weight ? Number(body.weight) : null,
         shop: body.shop || null,
-        weight: safeWeight,
-        value: safeValue,
-        carrier: body.carrier,
-        expectedDate: body.expectedDate ? new Date(body.expectedDate) : null,
+        carrier: body.carrier || null,
+        partnerId: partnerId,
+        recipientName: recipientName,
         purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : null,
-        recipient: body.recipient,
+        expectedDelivery: body.expectedDelivery ? new Date(body.expectedDelivery) : null,
         comment: body.comment || null,
-        status: body.status || 'ожидается',
-        userId: userId
+        status: 'Ожидается'
       }
     });
 
     return NextResponse.json({ success: true, parcel: newParcel });
   } catch (error) {
-    console.error('Ошибка POST /api/parcels:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error("Ошибка создания посылки:", error);
+    return NextResponse.json({ message: "Ошибка сохранения в БД" }, { status: 500 });
   }
 }

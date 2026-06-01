@@ -1,34 +1,40 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { jwtVerify } from 'jose'
-import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { analyzeCustomsRisk } from '@/lib/risk-engine';
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('token')?.value
-
-    if (!token) {
-      return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
-    }
-
-    // 1. Преобразуем строку секрета в Uint8Array
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'parcelge-secret-key')
-
-    // 2. Используем правильную переменную для результата (payload вместо decoded)
-    const { payload } = await jwtVerify(token, secret)
-    
-    // 3. Теперь payload.userId доступен
-    const userId = payload.userId as string
-
     const parcels = await prisma.parcel.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' }
-    })
+      orderBy: { updatedAt: 'desc' }
+    });
 
-    return NextResponse.json({ parcels })
+    // На лету прогоняем активные посылки через Risk Engine
+    const activeParcels = parcels.filter(p => p.status !== 'Доставлено' && p.status !== 'Утеряно');
+
+    const enrichedParcels = parcels.map(parcel => {
+      // Для доставленных/утерянных риски не считаем
+      if (parcel.status === 'Доставлено' || parcel.status === 'Утеряно') {
+        return { ...parcel, recipient: parcel.recipientName };
+      }
+
+      // Имитация получения данных о погоде (в проде берется из API)
+      const mockWeatherRisk = Math.floor(Math.random() * 40); // 0-40% шанс задержки
+
+      const riskAnalysis = analyzeCustomsRisk(parcel, activeParcels, mockWeatherRisk);
+
+      return {
+        ...parcel,
+        recipient: parcel.recipientName,
+        customsRiskScore: riskAnalysis.score,
+        riskFactors: riskAnalysis.factors, // Массив предупреждений для Telegram/Push
+        hubWeatherRisk: mockWeatherRisk,
+        flightDelayRisk: Math.floor(riskAnalysis.score / 2),
+      };
+    });
+
+    return NextResponse.json({ parcels: enrichedParcels });
   } catch (error) {
-    console.error('Ошибка получения:', error)
-    return NextResponse.json({ parcels: [] }, { status: 500 })
+    console.error("Ошибка API GET Parcels:", error);
+    return NextResponse.json({ error: "Внутренняя ошибка сервера" }, { status: 500 });
   }
 }

@@ -3,85 +3,63 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-enum AlertSeverity {
-  INFO
-  WARNING
-  ERROR
-  CRITICAL
+// Настройки владельца аккаунта
+model OwnerProfile {
+  id         String   @id @default(uuid())
+  name       String   @default("Владелец")
+  phone      String?
+  telegram   String?
+  documentId String?
+  updatedAt  DateTime @updatedAt
 }
 
-model User {
-  id               String    @id @default(cuid())
-  email            String    @unique
-  password         String
-  name             String
-  phone            String?
-  idDocument       String?
-  telegramChatId   String?   
-  resetToken       String?
-  resetTokenExpiry DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt 
-  
-  parcels          Parcel[]
-  partners         Partner[]
-  carriers         Carrier[] 
-}
-
-model Carrier {
-  id        String   @id @default(cuid())
-  name      String   
-  website   String?  
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-}
-
+// Дополнительные получатели (семья/друзья)
 model Partner {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid())
   name       String
   phone      String?
-  idDocument String?
-  slotNumber Int?      
-  isActive   Boolean  @default(false)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now()) 
-  updatedAt  DateTime @updatedAt      
+  email      String?
+  documentId String?
+  isActive   Boolean  @default(true)
+  parcels    Parcel[] // Связь: один партнер -> много посылок
+  createdAt  DateTime @default(now())
 }
 
+// Отправления (Грузы)
 model Parcel {
-  id           String    @id @default(cuid())
-  trackCode    String    
-  name         String    
-  shop         String?   // Название магазина
-  value        Float
-  weight       Float?    // Вес в кг
-  carrier      String    
-  expectedDate DateTime?
-  purchaseDate DateTime?
-  recipient    String
-  comment      String?
-  status       String    @default("ожидается") 
-  userId       String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  trackCode        String    @unique
+  name             String
+  value            Float     // Стоимость в GEL
+  weight           Float?    // Вес в КГ
+  shop             String?   // Магазин (Amazon, ASOS и т.д.)
+  carrier          String?   // Перевозчик (USA2GEORGIA, Camex)
+  status           String    @default("Ожидается")
+  
+  // Даты
+  purchaseDate     DateTime?
+  expectedDelivery DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  // Связь с получателем (если null, то получатель - Владелец)
+  partnerId        String?
+  partner          Partner?  @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  recipientName    String    // Денормализация для быстрого доступа
+  
+  // Дополнительно
+  comment          String?
+  
+  // Вычисляемые риски (сохраняем кэш для быстрой отдачи)
+  hubWeatherRisk   Int       @default(0)
+  flightDelayRisk  Int       @default(0)
+  customsRiskScore Int       @default(0)
 
-  @@unique([userId, trackCode])
-}
-
-model Alert {
-  id         String        @id @default(cuid())
-  type       String   
-  message    String   
-  severity   AlertSeverity @default(INFO) 
-  relatedHub String?  
-  isResolved Boolean       @default(false)
-  createdAt  DateTime      @default(now())
+  // ── ВОССТАНОВЛЕННЫЕ ПОЛЯ ДЛЯ ДАШБОРДА ──
+  deliveryScheduleStatus String? @default("unknown") // 'on_time', 'delayed', 'early', 'unknown'
+  scheduleDeltaDays      Int?    @default(0)         // Дни отклонения графика
 }
