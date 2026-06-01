@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
     // Ищем партнера по имени, чтобы привязать посылку к нужному лимиту
     let partnerId = null;
-    let recipientName = "Владелец";
+    let recipient = "Владелец"; // Исправлено на recipient
 
     if (body.partner && body.partner.trim() !== '') {
       const partner = await prisma.partner.findFirst({
@@ -20,9 +20,9 @@ export async function POST(req: Request) {
       });
       if (partner) {
         partnerId = partner.id;
-        recipientName = partner.name;
+        recipient = partner.name;
       } else {
-        recipientName = body.partner; // Если не нашли в базе, просто пишем имя
+        recipient = body.partner;
       }
     }
 
@@ -36,9 +36,9 @@ export async function POST(req: Request) {
         shop: body.shop || null,
         carrier: body.carrier || null,
         partnerId: partnerId,
-        recipientName: recipientName,
+        recipient: recipient, // Исправлено
         purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : null,
-        expectedDelivery: body.expectedDelivery ? new Date(body.expectedDelivery) : null,
+        expectedDate: body.expectedDelivery ? new Date(body.expectedDelivery) : null, // Исправлено на expectedDate
         comment: body.comment || null,
         status: 'Ожидается'
       }

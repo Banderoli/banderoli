@@ -12,9 +12,9 @@ export async function GET() {
     const activeParcels = parcels.filter(p => p.status !== 'Доставлено' && p.status !== 'Утеряно');
 
     const enrichedParcels = parcels.map(parcel => {
-      // Для доставленных/утерянных риски не считаем
+      // Для доставленных/утерянных риски не считаем (поле уже называется recipient)
       if (parcel.status === 'Доставлено' || parcel.status === 'Утеряно') {
-        return { ...parcel, recipient: parcel.recipientName };
+        return { ...parcel }; 
       }
 
       // Имитация получения данных о погоде (в проде берется из API)
@@ -24,7 +24,6 @@ export async function GET() {
 
       return {
         ...parcel,
-        recipient: parcel.recipientName,
         customsRiskScore: riskAnalysis.score,
         riskFactors: riskAnalysis.factors, // Массив предупреждений для Telegram/Push
         hubWeatherRisk: mockWeatherRisk,
