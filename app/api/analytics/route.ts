@@ -2,18 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-
-// Интерфейс посылки для строгой типизации
-interface Parcel {
-  id: string;
-  name: string;
-  value: number | string; // Может прийти как число или строка из БД
-  status: string;
-  carrier: string;
-  recipient: string;
-  expectedDate: Date | null;
-  createdAt: Date;
-}
+import { Parcel } from '@prisma/client'; // 🔥 ИМПОРТИРУЕМ ИДЕАЛЬНЫЙ ТИП НАПРЯМУЮ ИЗ БАЗЫ
 
 /**
  * Проверяет авторизацию пользователя
@@ -35,7 +24,9 @@ async function getUserId(): Promise<string | null> {
  * Серверный движок расчета вероятности растаможки
  */
 function calculateParcelRiskPercentage(current: Parcel, allParcels: Parcel[]): number {
-  if (current.status === 'доставлено' || current.status === 'утеряно') return 0;
+  const status = current.status.toLowerCase();
+  // Исключаем доставленные, утерянные и архивные из расчета рисков
+  if (status === 'доставлено' || status === 'утеряно' || status === 'в архиве') return 0;
   
   const val = Number(current.value) || 0;
   if (val >= 300) return 100; 
@@ -46,26 +37,33 @@ function calculateParcelRiskPercentage(current: Parcel, allParcels: Parcel[]): n
   else if (val >= 100) riskPercentage += 15;
   else riskPercentage += 5;
 
-  if (!current.expectedDate) return riskPercentage;
-  const currentFieldsTime = new Date(current.expectedDate).getTime();
+  // ИСПОЛЬЗУЕМ ПРАВИЛЬНОЕ ПОЛЕ expectedDelivery
+  if (!current.expectedDelivery) return riskPercentage;
+  const currentFieldsTime = new Date(current.expectedDelivery).getTime();
 
   let hasCarrierCollision = false;
   let hasDifferentCarrierCollision = false;
   let hasShopCollision = false;
 
   allParcels.forEach((p: Parcel) => {
-    if (p.id === current.id || p.status === 'доставлено' || p.status === 'утеряно' || !p.expectedDate) return;
+    const pStatus = p.status.toLowerCase();
+    if (p.id === current.id || pStatus === 'доставлено' || pStatus === 'утеряно' || pStatus === 'в архиве' || !p.expectedDelivery) return;
     
-    const pTime = new Date(p.expectedDate).getTime();
+    const pTime = new Date(p.expectedDelivery).getTime();
     const dayDiff = Math.abs(pTime - currentFieldsTime) / 86400000;
 
-    if (dayDiff <= 4 && p.recipient === current.recipient) {
-      if (p.carrier === current.carrier) {
+    // ИСПОЛЬЗУЕМ ПРАВИЛЬНОЕ ПОЛЕ recipientName
+    if (dayDiff <= 4 && p.recipientName === current.recipientName && current.recipientName) {
+      if (p.carrier === current.carrier && current.carrier) {
         hasCarrierCollision = true;
       } else {
         hasDifferentCarrierCollision = true;
       }
-      if (p.name.toLowerCase() === current.name.toLowerCase()) {
+      
+      // ИСПОЛЬЗУЕМ ПРАВИЛЬНОЕ ПОЛЕ shop (или name как запасной вариант)
+      const pShop = p.shop || p.name;
+      const cShop = current.shop || current.name;
+      if (pShop.toLowerCase() === cShop.toLowerCase()) {
         hasShopCollision = true;
       }
     }
@@ -83,15 +81,15 @@ export async function GET(req: NextRequest) {
     const userId = await getUserId();
     if (!userId) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
 
-    // Получаем посылки
+    // Получаем посылки (TypeScript теперь сам знает все поля благодаря импорту Prisma)
     const parcels: Parcel[] = await prisma.parcel.findMany({
       where: { userId },
       orderBy: { createdAt: 'asc' }
     });
 
     const totalParcels = parcels.length;
-    const deliveredCount = parcels.filter(p => p.status === 'доставлено').length;
-    const lostCount = parcels.filter(p => p.status === 'утеряно').length;
+    const deliveredCount = parcels.filter(p => p.status.toLowerCase() === 'доставлено').length;
+    const lostCount = parcels.filter(p => p.status.toLowerCase() === 'утеряно').length;
 
     // Безопасное сложение денег
     let totalCents = 0;
@@ -106,7 +104,8 @@ export async function GET(req: NextRequest) {
     let highRiskCount = 0;
 
     parcels.forEach((p: Parcel) => {
-      if (p.status !== 'доставлено' && p.status !== 'утеряно') {
+      const status = p.status.toLowerCase();
+      if (status !== 'доставлено' && status !== 'утеряно' && status !== 'в архиве') {
         const percent = calculateParcelRiskPercentage(p, parcels);
         if (percent >= 61) highRiskCount++;
         else if (percent >= 31) medRiskCount++;
@@ -114,9 +113,11 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    // Безопасный подсчет перевозчиков (учитываем, что перевозчик может быть не указан)
     const carrierCounts: Record<string, number> = {};
     parcels.forEach((p: Parcel) => {
-      carrierCounts[p.carrier] = (carrierCounts[p.carrier] || 0) + 1;
+      const carrierName = p.carrier || 'Не указан';
+      carrierCounts[carrierName] = (carrierCounts[carrierName] || 0) + 1;
     });
     
     const carrierData = Object.keys(carrierCounts).map(name => ({

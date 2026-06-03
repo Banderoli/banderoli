@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       name: user.name, 
       email: user.email, 
       phone: user.phone, 
-      idDocument: user.idDocument
+      idDocument: user.documentId
     })
   } catch (error) {
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })

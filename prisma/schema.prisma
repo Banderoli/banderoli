@@ -7,17 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Настройки владельца аккаунта
-model OwnerProfile {
-  id         String   @id @default(uuid())
-  name       String   @default("Владелец")
+// ── Главный аккаунт пользователя (Заменяет OwnerProfile) ──
+model User {
+  id         String    @id @default(cuid())
+  email      String    @unique
+  password   String    // Хэш пароля для авторизации
+  name       String    @default("Владелец")
   phone      String?
-  telegram   String?
+  telegramChatId String?
   documentId String?
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  carriers         Carrier[]
+
+  // Связи: у одного юзера может быть много партнеров и много посылок
+  partners   Partner[]
+  parcels    Parcel[]
 }
 
-// Дополнительные получатели (семья/друзья)
+// ── Дополнительные получатели (семья/друзья) ──
 model Partner {
   id         String   @id @default(uuid())
   name       String
@@ -25,11 +35,17 @@ model Partner {
   email      String?
   documentId String?
   isActive   Boolean  @default(true)
-  parcels    Parcel[] // Связь: один партнер -> много посылок
   createdAt  DateTime @default(now())
+
+  // Связь с владельцем (К какому аккаунту принадлежит партнер)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Связь: один партнер -> много посылок
+  parcels    Parcel[]
 }
 
-// Отправления (Грузы)
+// ── Отправления (Грузы) ──
 model Parcel {
   id               String    @id @default(uuid())
   trackCode        String    @unique
@@ -46,7 +62,11 @@ model Parcel {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   
-  // Связь с получателем (если null, то получатель - Владелец)
+  // Связь с владельцем (В чьем кабинете находится посылка)
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Связь с получателем (если null, то получатель - сам Владелец)
   partnerId        String?
   partner          Partner?  @relation(fields: [partnerId], references: [id], onDelete: SetNull)
   recipientName    String    // Денормализация для быстрого доступа
@@ -54,14 +74,14 @@ model Parcel {
   // Дополнительно
   comment          String?
   
-  // Вычисляемые риски (сохраняем кэш для быстрой отдачи)
+  // Вычисляемые риски
   hubWeatherRisk   Int       @default(0)
   flightDelayRisk  Int       @default(0)
   customsRiskScore Int       @default(0)
 
-  // ── ВОССТАНОВЛЕННЫЕ ПОЛЯ ДЛЯ ДАШБОРДА ──
-  deliveryScheduleStatus String? @default("unknown") // 'on_time', 'delayed', 'early', 'unknown'
-  scheduleDeltaDays      Int?    @default(0)         // Дни отклонения графика
+  // Поля для дашборда
+  deliveryScheduleStatus String? @default("unknown")
+  scheduleDeltaDays      Int?    @default(0)
 }
 
 model Alert {
@@ -70,4 +90,17 @@ model Alert {
   message    String
   isResolved Boolean  @default(false)
   createdAt  DateTime @default(now())
+  severity    String?   
+  relatedHub  String?   
+
+}
+
+model Carrier {
+  id        String   @id @default(uuid())
+  name      String
+  website   String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

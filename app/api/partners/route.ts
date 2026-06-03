@@ -54,10 +54,10 @@ export async function POST(req: NextRequest) {
 
     const partner = await prisma.partner.create({
       data: {
-        name: data.name,
+       name: data.name,
         phone: data.phone || null,
-        idDocument: data.idDocument || null,
-        isActive: true, // Делаем партнера активным по умолчанию
+        documentId: data.idDocument || null, // <-- ИСПРАВЛЕНО (слева documentId)
+        isActive: true, 
         userId: userId
       }
     });

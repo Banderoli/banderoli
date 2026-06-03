@@ -1,6 +1,6 @@
+import { prisma } from '@/lib/prisma'; // <-- Вот эта строка должна быть вверху!
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
 import { SignJWT } from 'jose'
 import { cookies } from 'next/headers'
 

@@ -19,9 +19,8 @@ export async function checkCarrierDelays(carrierName: string, url: string) {
       await prisma.alert.create({
         data: {
           type: 'WAREHOUSE_DELAY',
-          message: `Служба ${carrierName}: На официальном сайте обнаружены риски задержек (найдены упоминания: ${found.join(', ')}).`,
-          severity: 'WARNING',
-          relatedHub: carrierName
+          message: `Служба ${carrierName}: На официальном сайте обнаружены риски задержек ...`
+
         }
       });
     }

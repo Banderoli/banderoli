@@ -1,49 +1,53 @@
-/**
- * Сервисный модуль для работы с Telegram Bot API.
- * Использует стандартный fetch для отправки уведомлений.
- */
+// lib/telegram.ts
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+export async function sendTelegramAlert(message: string) {
+  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-/**
- * Отправляет текстовое сообщение пользователю в Telegram.
- * @param {string} chatId - Уникальный идентификатор чата пользователя в Telegram
- * @param {string} message - Текст уведомления (поддерживает HTML разметку)
- * @returns {Promise<boolean>} - Результат отправки (true, если успешно)
- */
-export async function sendTelegramNotification(chatId: string, message: string): Promise<boolean> {
-  if (!TELEGRAM_BOT_TOKEN) {
-    console.error('Ошибка Telegram: Секретный токен TELEGRAM_BOT_TOKEN не задан в .env');
-    return false;
+  if (!BOT_TOKEN || !CHAT_ID) {
+    console.warn("⚠️ Telegram ключи не найдены в .env. Уведомление пропущено.");
+    return;
   }
 
-  if (!chatId) return false;
-
+  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+  
   try {
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-    
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'HTML', // Включает поддержку тегов <b>, <i>, <code>
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        chat_id: CHAT_ID, 
+        text: message, 
+        parse_mode: 'HTML' 
       }),
     });
 
-    const data = await response.json();
-    
-    if (!response.ok || !data.ok) {
-      console.error('Ошибка отправки в Telegram API:', data);
-      return false;
+    if (!response.ok) {
+      console.error("Ошибка Telegram API:", await response.text());
     }
-
-    return true;
   } catch (error) {
-    console.error('Критическое исключение при отправке в Telegram:', error);
-    return false;
+    console.error("Ошибка при отправке в Telegram:", error);
+  }
+}
+
+// Добавь это в конец файла lib/telegram.ts
+export async function sendTelegramToUser(chatId: string, message: string) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN; 
+  if (!botToken) {
+    console.warn('TELEGRAM_BOT_TOKEN не задан в .env');
+    return;
+  }
+  
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+      }),
+    });
+  } catch (error) {
+    console.error('Ошибка отправки пользователю в Telegram:', error);
   }
 }

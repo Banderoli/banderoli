@@ -59,9 +59,8 @@ export async function checkWeatherAlerts() {
         await prisma.alert.create({
           data: {
             type: 'WEATHER',
-            message,
-            severity: severity as any,
-            relatedHub: hub.name
+            message
+      
           }
         });
       }

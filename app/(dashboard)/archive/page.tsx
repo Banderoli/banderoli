@@ -32,7 +32,7 @@ export default function ArchivePage() {
   useEffect(() => {
     const fetchArchive = async () => {
       try {
-        const res = await fetch('/api/parcels/get').catch(() => ({ ok: false, json: () => ({ parcels: [] }) }))
+        const res = await fetch('/api/parcels').catch(() => ({ ok: false, json: () => ({ parcels: [] }) }))
         
         if (res.ok) {
           const data: ParcelsResponse = await res.json()
