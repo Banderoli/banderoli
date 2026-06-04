@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma'; // Используем красивый алиас пути
+import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
@@ -15,7 +15,7 @@ async function getUserId(): Promise<string | null> {
   } catch { return null; }
 }
 
-// ── PATCH: ДЛЯ КНОПОК "Доставлено", "Утеряно", "В архив" (Быстрое обновление статуса) ──
+// ── PATCH: ДЛЯ КНОПОК "Доставлено", "Утеряно", "В архив" ──
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const userId = await getUserId();
@@ -25,23 +25,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const parcelId = resolvedParams.id;
     const body = await req.json();
 
-    // Формируем объект обновления. Позволяет безопасно менять статус на "Архив" и другие.
     const updateData: any = {};
     if (body.status !== undefined) {
       updateData.status = body.status;
     }
 
-    // Защита от пустого запроса
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'Нет данных для обновления' }, { status: 400 });
     }
 
-    // Обновляем (updateMany защищает от обновления чужой посылки)
     const updatedParcel = await prisma.parcel.updateMany({
-      where: { 
-        id: parcelId,
-        userId: userId 
-      },
+      where: { id: parcelId, userId: userId },
       data: updateData
     });
 
@@ -55,7 +49,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
-
 
 // ── PUT: ДЛЯ КНОПКИ "Изменить" (Полное редактирование формы) ──
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -72,7 +65,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Not found or access denied' }, { status: 404 });
     }
 
-    // Безопасная обработка чисел (теперь позволяет обнулять вес, если пользователь его стер)
     const safeValue = body.value !== undefined 
         ? (typeof body.value === 'string' ? parseFloat(body.value.replace(',', '.')) : body.value) 
         : existing.value;
@@ -81,7 +73,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ? (body.weight ? parseFloat(String(body.weight).replace(',', '.')) : null) 
         : existing.weight;
 
-    // Безопасная обработка дат (позволяет стирать дату доставки/покупки)
     const safeExpectedDelivery = body.expectedDelivery !== undefined 
         ? (body.expectedDelivery ? new Date(body.expectedDelivery) : null) 
         : existing.expectedDelivery;
@@ -90,7 +81,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ? (body.purchaseDate ? new Date(body.purchaseDate) : null) 
         : existing.purchaseDate;
 
-    // Используем строгое !== undefined, чтобы пустые строки ("") корректно стирали данные в БД
+    // Конвертация пустых строк в null для чистой базы данных
+    const parsedRecipientName = body.recipientName !== undefined 
+        ? (body.recipientName || null) 
+        : existing.recipientName;
+        
+    const parsedComment = body.comment !== undefined 
+        ? (body.comment || null) 
+        : existing.comment;
+
     const updatedParcel = await prisma.parcel.update({
       where: { id: parcelId },
       data: {
@@ -102,8 +101,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         carrier: body.carrier !== undefined ? body.carrier : existing.carrier,
         expectedDelivery: safeExpectedDelivery,
         purchaseDate: safePurchaseDate,
-        recipientName: body.recipientName !== undefined ? body.recipientName : existing.recipientName,
-        comment: body.comment !== undefined ? body.comment : existing.comment,
+        recipientName: parsedRecipientName,
+        comment: parsedComment,
         status: body.status !== undefined ? body.status : existing.status,
       }
     });
@@ -114,7 +113,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
-
 
 // ── DELETE: Для удаления посылки ──
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

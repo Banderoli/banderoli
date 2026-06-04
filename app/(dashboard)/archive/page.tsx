@@ -76,8 +76,7 @@ export default function ArchivePage() {
       return matchesSearch && matchesStatus
     })
   }, [parcels, searchQuery, filterStatus])
-
-  // ── ФУНКЦИОНАЛ ──────────────────────────────────────────────
+// ── ФУНКЦИОНАЛ ──────────────────────────────────────────────
   const handleCopy = (trackCode: string, id: string) => {
     navigator.clipboard.writeText(trackCode)
     setCopiedId(id)
@@ -88,22 +87,34 @@ export default function ArchivePage() {
   const handleRestore = async (id: string) => {
     setRestoringId(id)
     try {
-      // Здесь будет вызов твоего API для изменения статуса
-      // await fetch(`/api/parcels/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'Ожидается' }) })
+      // 1. Делаем РЕАЛЬНЫЙ запрос к базе данных
+      const response = await fetch(`/api/parcels/${id}`, { 
+        method: 'PATCH', 
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'ожидается' }) // Переводим статус в активный
+      });
+
+      // 2. Проверяем, успешно ли ответил сервер
+      if (!response.ok) {
+        throw new Error('Не удалось восстановить посылку в базе данных');
+      }
       
-      // Имитация задержки сети
-      await new Promise(res => setTimeout(res, 800)) 
-      
-      // Удаляем из локального состояния (оно перешло в дашборд)
+      // 3. Если база данных успешно обновлена, убираем карточку с экрана
       setParcels(prev => prev.filter(p => p.id !== id))
+      
     } catch (error) {
-      console.error('Ошибка восстановления', error)
+      console.error('Ошибка восстановления:', error)
+      // Здесь можно добавить уведомление для пользователя (например, toast), 
+      // чтобы он знал, что что-то пошло не так
     } finally {
+      // 4. Выключаем индикатор загрузки в любом случае (даже при ошибке)
       setRestoringId(null)
     }
   }
 
-  // ── UI ЗАГРУЗКИ ─────────────────────────────────────────────
+  // ── UI ЗАГРУЗКИ ─ ─────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-500 gap-4">
