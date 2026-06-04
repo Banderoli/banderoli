@@ -267,7 +267,7 @@ export default function DashboardPage() {
 
           <header className="fade-up flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/80 backdrop-blur-sm p-6 sm:p-8 rounded-3xl border border-white shadow-sm">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Привет, {userName}! 👋</h1>
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Привет, {userName}! </h1>
               <p className="text-slate-400 mt-1 text-sm font-medium">Логистика · Таможня · Риски</p>
             </div>
             <button onClick={() => router.push('/dashboard/add')} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-5 py-3 rounded-2xl font-bold transition-all shadow-md hover:shadow-indigo-200 hover:shadow-lg text-sm w-full sm:w-auto justify-center">

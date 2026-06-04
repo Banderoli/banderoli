@@ -69,7 +69,7 @@ model Parcel {
   // Связь с получателем (если null, то получатель - сам Владелец)
   partnerId        String?
   partner          Partner?  @relation(fields: [partnerId], references: [id], onDelete: SetNull)
-  recipientName?    String    // Денормализация для быстрого доступа
+  recipientName    String?    // Денормализация для быстрого доступа
   
   // Дополнительно
   comment          String?

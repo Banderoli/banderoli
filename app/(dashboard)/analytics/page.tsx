@@ -68,7 +68,7 @@ export default function AnalyticsPage() {
     const fetchAllData = async () => {
       try {
         const [resParcels, resPartners] = await Promise.all([
-          fetch('/api/parcels/get').catch(() => ({ ok: false, json: () => ({ parcels: [] }) })), 
+          fetch('/api/parcels').catch(() => ({ ok: false, json: () => ({ parcels: [] }) })), 
           fetch('/api/partners').catch(() => ({ ok: false, json: () => ({ partners: [] }) }))
         ])
         

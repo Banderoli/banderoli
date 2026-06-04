@@ -151,7 +151,7 @@ export default function DashboardPage() {
     const fetchAll = async () => {
       try {
         const [resParcels, resPartners] = await Promise.all([
-          fetch('/api/parcels/get'),
+          fetch('/api/parcels'),
           fetch('/api/partners'),
         ])
 
@@ -299,7 +299,7 @@ export default function DashboardPage() {
                            bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              Привет, {userName}! 👋
+              Привет, {userName}!
             </h1>
             <p className="text-slate-500 mt-1 font-medium text-sm sm:text-base">
               Контроль логистики и таможенных лимитов
