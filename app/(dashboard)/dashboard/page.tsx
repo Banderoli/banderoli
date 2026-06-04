@@ -8,7 +8,7 @@ import {
   Calculator, Loader2, Clock, ShieldAlert, CloudRain, Cloud, Sun,
   Weight, Store, Truck, User, Tag, QrCode, CalendarClock,
   ChevronDown, ChevronUp, TrendingUp, Archive, Timer, CheckCircle2,
-  AlertCircle, ArrowUpCircle, Activity, Edit2, XCircle
+  AlertCircle, ArrowUpCircle, Activity, Edit2, XCircle, Trash2 // <-- Добавили Trash2
 } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════
@@ -29,7 +29,7 @@ type Parcel = {
   carrier?: string
   partner?: string
   recipientName?: string
-  comment?: string // <-- ДОБАВЛЕНО ПОЛЕ КОММЕНТАРИЯ
+  comment?: string
   expectedDelivery?: string
   riskScore?: number
   deliveryScheduleStatus?: DeliveryStatus
@@ -47,7 +47,7 @@ const WEIGHT_LIMIT = 30    // кг
 const VAT          = 0.18
 const CUSTOMS_FEE  = 20    // ₾
 
-const DEMO: Parcel[] = [] // Демо пуст для продакшена
+const DEMO: Parcel[] = [] 
 
 function riskCls(pct: number) {
   if (pct >= 61) return { badge: 'bg-rose-50 text-rose-600 border-rose-200', bar: 'bg-rose-400' }
@@ -148,10 +148,34 @@ export default function DashboardPage() {
       return
     }
 
+    // 🔥 НОВАЯ ЛОГИКА УДАЛЕНИЯ 🔥
+    if (action === 'delete') {
+      const isConfirmed = window.confirm('Вы уверены, что хотите безвозвратно удалить эту посылку?\nЭто действие необратимо.');
+      if (!isConfirmed) return;
+
+      const previousParcels = [...parcels];
+      // Сразу убираем из интерфейса для плавности
+      setParcels(prev => prev.filter(p => p.id !== id));
+      
+      try {
+        const res = await fetch(`/api/parcels/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          throw new Error(errData?.error || 'Ошибка удаления');
+        }
+        router.refresh();
+      } catch (err: any) {
+        console.error(err);
+        alert(`Не удалось удалить посылку:\n${err.message}`);
+        // Возвращаем на место, если удаление на сервере сорвалось
+        setParcels(previousParcels);
+      }
+      return;
+    }
+
     let newStatus = ''
     if (action === 'delivered') newStatus = 'Доставлено'
     else if (action === 'lost') newStatus = 'Утеряно'
-    else if (action === 'archive') newStatus = 'В архиве'
 
     if (newStatus) {
       const previousParcels = [...parcels]
@@ -172,32 +196,44 @@ export default function DashboardPage() {
     }
   }
 
+  // ОБНОВЛЕННАЯ УМНАЯ ЛОГИКА СОХРАНЕНИЯ (с прошлого этапа)
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingParcelId) return
 
     try {
+      const payload = {
+        ...editForm,
+        weight: editForm.weight === undefined ? null : editForm.weight,
+        expectedDelivery: editForm.expectedDelivery === undefined ? null : editForm.expectedDelivery,
+        recipientName: editForm.recipientName === '' ? null : editForm.recipientName,
+        comment: editForm.comment === '' ? null : editForm.comment,
+      }
+
       const res = await fetch(`/api/parcels/${editingParcelId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify(payload)
       })
       
-      if (!res.ok) throw new Error('Ошибка сохранения')
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || `Сервер отклонил запрос (Код: ${res.status})`);
+      }
       
       const data = await res.json()
       
       setParcels(prev => prev.map(p => p.id === editingParcelId ? { ...p, ...data.parcel } : p))
       setEditingParcelId(null)
       router.refresh()
-    } catch (err) {
-      console.error(err)
-      alert('Не удалось сохранить изменения.')
+    } catch (err: any) {
+      console.error('Ошибка сохранения:', err)
+      alert(`Не удалось сохранить изменения:\n${err.message}`)
     }
   }
 
   // ── Вычисления ───────────────────────────────────────────────
-  const active    = useMemo(() => parcels.filter(p => !['доставлено','утеряно','в архиве'].includes(p.status.toLowerCase())), [parcels])
+  const active    = useMemo(() => parcels.filter(p => !['доставлено','утеряно'].includes(p.status.toLowerCase())), [parcels])
   const delivered = useMemo(() => parcels.filter(p => p.status.toLowerCase() === 'доставлено'), [parcels])
   const inTransit = useMemo(() => active.filter(p => p.status.toLowerCase() === 'в пути'), [active])
 
@@ -421,8 +457,10 @@ export default function DashboardPage() {
                                   <button onClick={(e) => handleAction(e, 'edit', parcel.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors">
                                     <Edit2 size={14} /> Изменить
                                   </button>
-                                  <button onClick={(e) => handleAction(e, 'archive', parcel.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg text-xs font-bold transition-colors sm:ml-auto">
-                                    <Archive size={14} /> В архив
+                                  
+                                  {/* 🔥 НОВАЯ КНОПКА "УДАЛИТЬ" ВМЕСТО "В АРХИВ" 🔥 */}
+                                  <button onClick={(e) => handleAction(e, 'delete', parcel.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors sm:ml-auto">
+                                    <Trash2 size={14} /> Удалить
                                   </button>
                                 </div>
                               </div>
@@ -544,11 +582,11 @@ export default function DashboardPage() {
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">Цена (GEL)</label>
-                  <input type="number" step="0.01" value={editForm.value || ''} onChange={e => setEditForm({...editForm, value: parseFloat(e.target.value) || 0})} className="w-full border rounded-xl px-3 py-2 mt-1 text-sm outline-none focus:border-indigo-500" required />
+                  <input type="number" step="0.01" value={editForm.value ?? ''} onChange={e => setEditForm({...editForm, value: e.target.value === '' ? 0 : parseFloat(e.target.value)})} className="w-full border rounded-xl px-3 py-2 mt-1 text-sm outline-none focus:border-indigo-500" required />
                 </div>
                 <div className="flex-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">Вес (КГ)</label>
-                  <input type="number" step="0.01" value={editForm.weight || ''} onChange={e => setEditForm({...editForm, weight: e.target.value === '' ? undefined : Number(e.target.value)})} className="w-full border rounded-xl px-3 py-2 mt-1 text-sm outline-none focus:border-indigo-500" />
+                  <input type="number" step="0.01" value={editForm.weight ?? ''} onChange={e => setEditForm({...editForm, weight: e.target.value === '' ? undefined : Number(e.target.value)})} className="w-full border rounded-xl px-3 py-2 mt-1 text-sm outline-none focus:border-indigo-500" />
                 </div>
               </div>
               <div className="flex gap-4">
@@ -562,7 +600,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ── БЛОК ПОЛУЧАТЕЛЯ И ДАТЫ ДОСТАВКИ ── */}
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">Получатель</label>
@@ -585,7 +622,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ── БЛОК КОММЕНТАРИЯ ── */}
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Комментарий</label>
                 <textarea 

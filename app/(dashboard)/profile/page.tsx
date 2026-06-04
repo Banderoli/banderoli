@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { 
   User, Users, Smartphone, Trash2, Check, Loader2, Plus, 
-  ShieldCheck, Phone, Send, CreditCard, Mail, Edit2, X, Save
+  ShieldCheck, Phone, Send, CreditCard, Mail, Edit2, Save, XCircle
 } from 'lucide-react'
 
 // ── СТРОГАЯ ТИПИЗАЦИЯ ─────────────────────────────────────────
@@ -17,18 +17,10 @@ interface OwnerProfile {
 interface Partner { 
   id: string; 
   name: string; 
-  phone: string;
-  email: string;
-  documentId: string;
+  phone: string | null;
+  email: string | null;
+  documentId: string | null;
   isActive: boolean; 
-}
-
-interface PartnersResponse {
-  ownerName?: string;
-  ownerPhone?: string;
-  ownerTelegram?: string;
-  ownerDocumentId?: string;
-  partners: Partner[];
 }
 
 interface BeforeInstallPromptEvent extends Event {
@@ -72,10 +64,9 @@ export default function ProfilePage() {
 
   const fetchData = async () => {
     try {
-      const res = await fetch('/api/partners').catch(() => ({ ok: false, json: () => ({ partners: [] }) }))
+      const res = await fetch('/api/partners')
       if (res.ok) {
-        const data: PartnersResponse = await res.json()
-        // Адаптация под новые или старые данные БД
+        const data = await res.json()
         setOwner({
           name: data.ownerName || '',
           phone: data.ownerPhone || '',
@@ -123,8 +114,9 @@ export default function ProfilePage() {
       await fetch('/api/partners', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ ...newPartner, isActive: true }) 
+        body: JSON.stringify(newPartner) 
       })
+      // Жесткий сброс после успешного добавления
       setNewPartner({ name: '', phone: '', email: '', documentId: '' })
       await fetchData()
     } finally {
@@ -137,8 +129,7 @@ export default function ProfilePage() {
     if (!editingPartner) return
     setProcessingId(editingPartner.id)
     try {
-      // Здесь будет твой API для обновления конкретного партнера
-      await fetch(`/api/partners?id=${editingPartner.id}`, { 
+      await fetch(`/api/partners/${editingPartner.id}`, { 
         method: 'PATCH', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify(editingPartner) 
@@ -151,11 +142,11 @@ export default function ProfilePage() {
   }
 
   const handleDeletePartner = async (id: string) => {
-    if (!window.confirm('Удалить получателя? Это не повлияет на архив.')) return
+    if (!window.confirm('Удалить получателя? Это действие необратимо.')) return
     setProcessingId(id)
     try {
-      await fetch(`/api/partners?id=${id}`, { method: 'DELETE' })
-      await fetchData()
+      await fetch(`/api/partners/${id}`, { method: 'DELETE' })
+      setPartners(prev => prev.filter(p => p.id !== id))
     } finally {
       setProcessingId(null)
     }
@@ -171,7 +162,7 @@ export default function ProfilePage() {
   }
 
   // Универсальный класс для инпутов
-  const inputClass = "w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-semibold text-slate-900 placeholder:text-slate-400"
+  const inputClass = "w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-semibold text-slate-900 placeholder:text-slate-400 outline-none"
 
   if (loading) {
     return (
@@ -184,7 +175,6 @@ export default function ProfilePage() {
 
   return (
     <>
-      {/* ЖЕСТКИЙ ФИКС ТЕКСТА ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ */}
       <style>{`
         input, textarea, select {
           color: #0f172a !important;
@@ -201,7 +191,7 @@ export default function ProfilePage() {
         }
       `}</style>
 
-      <div className="py-6 space-y-8 animate-fade-in max-w-4xl mx-auto px-4 md:px-8 min-h-screen">
+      <div className="py-6 space-y-8 animate-fade-in max-w-4xl mx-auto px-4 md:px-8 min-h-screen bg-slate-50/50">
         
         {/* Шапка */}
         <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm text-center flex flex-col items-center">
@@ -232,25 +222,26 @@ export default function ProfilePage() {
                 <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
                   <User size={14} className="text-indigo-500" /> Имя и Фамилия
                 </label>
-                <input required className={inputClass} placeholder="Giorgi Beridze" value={owner.name} onChange={e => setOwner({ ...owner, name: e.target.value })} />
+                {/* ЗАЩИТА || '' ВО ВСЕХ ИНПУТАХ */}
+                <input required className={inputClass} placeholder="Giorgi Beridze" value={owner.name || ''} onChange={e => setOwner({ ...owner, name: e.target.value })} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
                   <CreditCard size={14} className="text-indigo-500" /> Номер документа (ID)
                 </label>
-                <input required className={inputClass} placeholder="01011012345" value={owner.documentId} onChange={e => setOwner({ ...owner, documentId: e.target.value })} />
+                <input required className={inputClass} placeholder="01011012345" value={owner.documentId || ''} onChange={e => setOwner({ ...owner, documentId: e.target.value })} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
                   <Phone size={14} className="text-emerald-500" /> Телефон
                 </label>
-                <input required type="tel" className={inputClass} placeholder="+995 555 123 456" value={owner.phone} onChange={e => setOwner({ ...owner, phone: e.target.value })} />
+                <input required type="tel" className={inputClass} placeholder="+995 555 123 456" value={owner.phone || ''} onChange={e => setOwner({ ...owner, phone: e.target.value })} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
                   <Send size={14} className="text-blue-500" /> Telegram (Username)
                 </label>
-                <input className={inputClass} placeholder="@username" value={owner.telegram} onChange={e => setOwner({ ...owner, telegram: e.target.value })} />
+                <input className={inputClass} placeholder="@username" value={owner.telegram || ''} onChange={e => setOwner({ ...owner, telegram: e.target.value })} />
               </div>
             </div>
 
@@ -288,21 +279,23 @@ export default function ProfilePage() {
           
           {/* Форма добавления нового */}
           <div className="bg-slate-50 p-5 md:p-6 rounded-2xl border border-slate-200 mb-8">
-            <h3 className="text-sm font-black text-slate-800 mb-4 text-fix">Добавить нового получателя</h3>
+            <h3 className="text-sm font-black text-slate-800 mb-4 text-fix flex items-center gap-2">
+              <Plus size={16} className="text-indigo-500"/> Добавить нового получателя
+            </h3>
             <form onSubmit={handleAddPartner} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input required className={inputClass} placeholder="Имя и Фамилия" value={newPartner.name} onChange={e => setNewPartner({ ...newPartner, name: e.target.value })} />
-                <input required className={inputClass} placeholder="Номер документа (ID)" value={newPartner.documentId} onChange={e => setNewPartner({ ...newPartner, documentId: e.target.value })} />
-                <input required type="tel" className={inputClass} placeholder="Телефон" value={newPartner.phone} onChange={e => setNewPartner({ ...newPartner, phone: e.target.value })} />
-                <input type="email" className={inputClass} placeholder="Email" value={newPartner.email} onChange={e => setNewPartner({ ...newPartner, email: e.target.value })} />
+                <input required className={inputClass} placeholder="Имя и Фамилия" value={newPartner.name || ''} onChange={e => setNewPartner({ ...newPartner, name: e.target.value })} />
+                <input className={inputClass} placeholder="Номер документа (ID)" value={newPartner.documentId || ''} onChange={e => setNewPartner({ ...newPartner, documentId: e.target.value })} />
+                <input type="tel" className={inputClass} placeholder="Телефон" value={newPartner.phone || ''} onChange={e => setNewPartner({ ...newPartner, phone: e.target.value })} />
+                <input type="email" className={inputClass} placeholder="Email" value={newPartner.email || ''} onChange={e => setNewPartner({ ...newPartner, email: e.target.value })} />
               </div>
               <button type="submit" disabled={isAdding} className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white px-6 py-4 rounded-xl font-black hover:bg-slate-800 transition-colors disabled:opacity-70 shadow-md">
-                {isAdding ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />} Добавить в систему
+                {isAdding ? <Loader2 size={18} className="animate-spin" /> : 'Добавить в систему'}
               </button>
             </form>
           </div>
 
-          {/* Список партнеров (с режимом редактирования) */}
+          {/* Список партнеров */}
           <div className="space-y-4">
             {partners.length === 0 ? (
               <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
@@ -317,10 +310,10 @@ export default function ProfilePage() {
                   {editingPartner?.id === p.id ? (
                     <form onSubmit={handleUpdatePartner} className="p-5 bg-indigo-50/30">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <input required className={inputClass} placeholder="Имя и Фамилия" value={editingPartner.name} onChange={e => setEditingPartner({ ...editingPartner, name: e.target.value })} />
-                        <input required className={inputClass} placeholder="ID Документа" value={editingPartner.documentId} onChange={e => setEditingPartner({ ...editingPartner, documentId: e.target.value })} />
-                        <input required className={inputClass} placeholder="Телефон" value={editingPartner.phone} onChange={e => setEditingPartner({ ...editingPartner, phone: e.target.value })} />
-                        <input className={inputClass} placeholder="Email" value={editingPartner.email} onChange={e => setEditingPartner({ ...editingPartner, email: e.target.value })} />
+                        <input required className={inputClass} placeholder="Имя и Фамилия" value={editingPartner.name || ''} onChange={e => setEditingPartner({ ...editingPartner, name: e.target.value })} />
+                        <input className={inputClass} placeholder="ID Документа" value={editingPartner.documentId || ''} onChange={e => setEditingPartner({ ...editingPartner, documentId: e.target.value })} />
+                        <input className={inputClass} placeholder="Телефон" value={editingPartner.phone || ''} onChange={e => setEditingPartner({ ...editingPartner, phone: e.target.value })} />
+                        <input className={inputClass} placeholder="Email" value={editingPartner.email || ''} onChange={e => setEditingPartner({ ...editingPartner, email: e.target.value })} />
                       </div>
                       <div className="flex gap-3 justify-end border-t border-indigo-100 pt-4">
                         <button type="button" onClick={() => setEditingPartner(null)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">Отмена</button>

@@ -15,7 +15,7 @@ async function getUserId(): Promise<string | null> {
   } catch { return null; }
 }
 
-// ── PATCH: ДЛЯ КНОПОК "Доставлено", "Утеряно", "В архив" ──
+// ── PATCH: Быстрое обновление статуса ──
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const userId = await getUserId();
@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-// ── PUT: ДЛЯ КНОПКИ "Изменить" (Полное редактирование формы) ──
+// ── PUT: Полное редактирование формы ──
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const userId = await getUserId();
@@ -81,7 +81,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         ? (body.purchaseDate ? new Date(body.purchaseDate) : null) 
         : existing.purchaseDate;
 
-    // Конвертация пустых строк в null для чистой базы данных
     const parsedRecipientName = body.recipientName !== undefined 
         ? (body.recipientName || null) 
         : existing.recipientName;
@@ -108,9 +107,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
     return NextResponse.json({ success: true, parcel: updatedParcel });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Ошибка PUT /api/parcels/[id]:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    
+    // 🔥 Ловим ошибку P2002 (Дубликат трек-кода) и возвращаем понятный текст
+    if (error.code === 'P2002') {
+      return NextResponse.json({ error: 'Посылка с таким трек-кодом уже существует в системе!' }, { status: 400 });
+    }
+    
+    return NextResponse.json({ error: 'Ошибка сервера при сохранении' }, { status: 500 });
   }
 }
 
