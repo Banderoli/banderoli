@@ -8,7 +8,7 @@ import {
   Calculator, Loader2, Clock, ShieldAlert, CloudRain, Cloud, Sun,
   Weight, Store, Truck, User, Tag, QrCode, CalendarClock,
   ChevronDown, ChevronUp, TrendingUp, Archive, Timer, CheckCircle2,
-  AlertCircle, ArrowUpCircle, Activity, Edit2, XCircle, Trash2 // <-- Добавили Trash2
+  AlertCircle, ArrowUpCircle, Activity, Edit2, XCircle, Trash2
 } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════
@@ -94,6 +94,9 @@ export default function DashboardPage() {
   const [loading,    setLoading]    = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   
+  // 🔥 НОВОЕ: Состояние для хранения списка партнеров
+  const [partnersList, setPartnersList] = useState<{id: string, name: string}[]>([])
+  
   const [editingParcelId, setEditingParcelId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<Parcel>>({})
 
@@ -115,6 +118,8 @@ export default function DashboardPage() {
         if (rPr.ok) {
           const d = await rPr.json()
           if (d.ownerName) setUserName(d.ownerName.split(' ')[0])
+          // 🔥 НОВОЕ: Сохраняем список партнеров из базы
+          if (d.partners) setPartnersList(d.partners)
         }
       } catch { setParcels(DEMO) } 
       finally { setLoading(false) }
@@ -148,13 +153,11 @@ export default function DashboardPage() {
       return
     }
 
-    // 🔥 НОВАЯ ЛОГИКА УДАЛЕНИЯ 🔥
     if (action === 'delete') {
       const isConfirmed = window.confirm('Вы уверены, что хотите безвозвратно удалить эту посылку?\nЭто действие необратимо.');
       if (!isConfirmed) return;
 
       const previousParcels = [...parcels];
-      // Сразу убираем из интерфейса для плавности
       setParcels(prev => prev.filter(p => p.id !== id));
       
       try {
@@ -167,7 +170,6 @@ export default function DashboardPage() {
       } catch (err: any) {
         console.error(err);
         alert(`Не удалось удалить посылку:\n${err.message}`);
-        // Возвращаем на место, если удаление на сервере сорвалось
         setParcels(previousParcels);
       }
       return;
@@ -196,7 +198,6 @@ export default function DashboardPage() {
     }
   }
 
-  // ОБНОВЛЕННАЯ УМНАЯ ЛОГИКА СОХРАНЕНИЯ (с прошлого этапа)
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingParcelId) return
@@ -458,7 +459,6 @@ export default function DashboardPage() {
                                     <Edit2 size={14} /> Изменить
                                   </button>
                                   
-                                  {/* 🔥 НОВАЯ КНОПКА "УДАЛИТЬ" ВМЕСТО "В АРХИВ" 🔥 */}
                                   <button onClick={(e) => handleAction(e, 'delete', parcel.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors sm:ml-auto">
                                     <Trash2 size={14} /> Удалить
                                   </button>
@@ -601,23 +601,28 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex gap-4">
+                {/* 🔥 НОВОЕ: ВЫПАДАЮЩИЙ СПИСОК ВМЕСТО INPUT 🔥 */}
                 <div className="flex-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">Получатель</label>
-                  <input 
-                    type="text" 
+                  <select 
                     value={editForm.recipientName || ''} 
                     onChange={e => setEditForm({...editForm, recipientName: e.target.value})} 
-                    className="w-full border rounded-xl px-3 py-2 mt-1 text-sm outline-none focus:border-indigo-500" 
-                    placeholder="Имя получателя" 
-                  />
+                    className="w-full border rounded-xl px-3 py-2 mt-1 text-sm outline-none focus:border-indigo-500 bg-white cursor-pointer" 
+                  >
+                    <option value="">Владелец аккаунта</option>
+                    {partnersList.map(p => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
+                
                 <div className="flex-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">Ожидаемая доставка</label>
                   <input 
                     type="date" 
                     value={formatDateForInput(editForm.expectedDelivery)} 
                     onChange={e => setEditForm({...editForm, expectedDelivery: e.target.value ? new Date(e.target.value).toISOString() : undefined})} 
-                    className="w-full border rounded-xl px-3 py-2 mt-1 text-sm outline-none focus:border-indigo-500" 
+                    className="w-full border rounded-xl px-3 py-2 mt-1 text-sm outline-none focus:border-indigo-500 bg-white" 
                   />
                 </div>
               </div>

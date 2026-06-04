@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -19,7 +19,7 @@ export default function AddParcelPage() {
     weight: '',
     shop: '',
     carrier: '',
-    partner: '',
+    partner: '', // Сюда будет сохраняться выбранный получатель
     purchaseDate: '',
     expectedDelivery: '',
     comment: ''
@@ -29,6 +29,21 @@ export default function AddParcelPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+
+  // 🔥 НОВОЕ: Состояние для хранения списка партнеров из Кабинета
+  const [partnersList, setPartnersList] = useState<{id: string, name: string}[]>([])
+
+  // 🔥 НОВОЕ: Загружаем список партнеров при монтировании компонента
+  useEffect(() => {
+    fetch('/api/partners')
+      .then(res => res.json())
+      .then(data => {
+        if (data.partners) {
+          setPartnersList(data.partners)
+        }
+      })
+      .catch(err => console.error('Ошибка загрузки списка получателей:', err))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,6 +81,9 @@ export default function AddParcelPage() {
 
   // Универсальный класс для полей ввода (с фиксом для мобильных)
   const inputClassName = "w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-semibold text-slate-900 placeholder:text-slate-400 appearance-none"
+  
+  // Специальный класс для Select (без appearance-none, чтобы была видна стрелочка)
+  const selectClassName = "w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-semibold text-slate-900 cursor-pointer"
 
   return (
     <>
@@ -225,16 +243,22 @@ export default function AddParcelPage() {
                     onChange={e => setFormData({...formData, carrier: e.target.value})} 
                   />
                 </div>
+                
+                {/* 🔥 НОВОЕ: ВЫПАДАЮЩИЙ СПИСОК ВМЕСТО INPUT 🔥 */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
-                    <User size={14} className="text-blue-500" /> Партнер (Кому)
+                    <User size={14} className="text-blue-500" /> Получатель
                   </label>
-                  <input 
-                    className={inputClassName} 
-                    placeholder="Имя получателя" 
+                  <select 
+                    className={selectClassName} 
                     value={formData.partner}
                     onChange={e => setFormData({...formData, partner: e.target.value})} 
-                  />
+                  >
+                    <option value="">Владелец аккаунта (Я)</option>
+                    {partnersList.map(p => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
