@@ -1,83 +1,67 @@
-import { prisma } from '@/lib/prisma'; // <-- Вот эта строка должна быть вверху!
-import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
-import { SignJWT } from 'jose'
-import { cookies } from 'next/headers'
+// app/api/auth/login/route.ts
+import bcrypt from 'bcryptjs'; // или 'bcrypt', в зависимости от того, что у тебя в package.json
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { SignJWT } from 'jose';
+// Если используешь bcrypt для хеширования паролей, раскомментируй:
+// import bcrypt from 'bcrypt';
 
-// Простая защита от брутфорса (перебора паролей)
-const attempts = new Map<string, { count: number; resetAt: number }>()
-
-function rateLimit(ip: string): boolean {
-  const now = Date.now()
-  const record = attempts.get(ip)
-
-  if (!record || now > record.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 })
-    return true
-  }
-
-  if (record.count >= 5) return false
-
-  record.count++
-  return true
-}
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'parcelge-secret-key'
+);
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for') || 'unknown'
+    const body = await req.json();
+    const { email, password } = body;
 
-    if (!rateLimit(ip)) {
-      return NextResponse.json(
-        { error: 'Слишком много попыток. Подождите 15 минут.' },
-        { status: 429 }
-      )
-    }
-
-    const { email, password } = await req.json()
-
-    // 1. Проверяем, что переданы все данные
     if (!email || !password) {
-      return NextResponse.json({ error: 'Email и пароль обязательны' }, { status: 400 })
+      return NextResponse.json({ error: 'Заполните все поля' }, { status: 400 });
     }
 
-    // 2. Ищем пользователя в базе данных
-    const user = await prisma.user.findUnique({ where: { email } })
+    // Ищем пользователя в базе
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+
     if (!user) {
-      // В целях безопасности мы не говорим, что "пользователь не найден", 
-      // чтобы злоумышленники не могли перебирать email-адреса.
-      return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 })
+      return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 });
     }
 
-    // 3. Проверяем правильность пароля
-    const isPasswordValid = await bcrypt.compare(password, user.password)
-    if (!isPasswordValid) {
-      return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 })
-    }
+    // Проверка пароля (раскомментируй нужный вариант)
+    // Вариант 1: Обычный текст (для дебага/старой версии)
+   const isPasswordValid = await bcrypt.compare(password, user.password);
 
-    // 4. ГЕНЕРИРУЕМ JWT ТОКЕН
-    const secretKey = process.env.JWT_SECRET || 'parcelge-secret-key'
-    const secret = new TextEncoder().encode(secretKey)
-    
-    const token = await new SignJWT({ userId: user.id, email: user.email })
+if (!isPasswordValid) {
+  return NextResponse.json({ error: 'Неверный пароль' }, { status: 401 });
+}
+
+    // Создаем JWT токен
+    const token = await new SignJWT({ 
+        userId: user.id, 
+        email: user.email, 
+        name: user.name 
+      })
       .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('24h') // Токен действует 24 часа
-      .sign(secret)
+      .setExpirationTime('7d') // Токен живет 7 дней
+      .sign(JWT_SECRET);
 
-   // 5. Записываем токен в защищенные куки
-    // ДОБАВЛЕН AWAIT
-    const cookieStore = await cookies();
-    cookieStore.set({
+    // Отправляем успешный ответ и устанавливаем cookie
+    const response = NextResponse.json({ success: true });
+    
+    response.cookies.set({
       name: 'token',
       value: token,
       httpOnly: true,
       path: '/',
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24
+      maxAge: 60 * 60 * 24 * 7 // 7 дней
     });
 
-    return NextResponse.json({ success: true, userId: user.id })
+    return response;
+
   } catch (error) {
-    console.error('Ошибка при входе:', error)
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
+    console.error('Ошибка при логине:', error);
+    return NextResponse.json({ error: 'Внутренняя ошибка сервера' }, { status: 500 });
   }
 }

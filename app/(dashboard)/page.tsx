@@ -157,11 +157,16 @@ export default function DashboardPage() {
 
         if (resParcels.ok) {
           const d = await resParcels.json()
-          if (d.parcels?.length) setParcels(d.parcels)
-          else setParcels(DEMO_PARCELS)
-        } else {
-          setParcels(DEMO_PARCELS)
-        }
+          if (d.parcels?.length) {
+    // Маппим recipientName в поле partner, которое ожидает интерфейс дашборда
+       setParcels(d.parcels.map((p: any) => ({
+      ...p,
+      partner: (!p.recipientName || p.recipientName === 'Владелец') ? undefined : p.recipientName
+    })))
+  } else {
+       setParcels(DEMO_PARCELS)
+  }
+}
 
         if (resPartners.ok) {
           const d = await resPartners.json()

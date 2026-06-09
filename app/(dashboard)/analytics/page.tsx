@@ -8,6 +8,8 @@ import {
   Scale, Banknote
 } from 'lucide-react'
 
+export const dynamic = 'force-dynamic';
+
 // ── СТРОГАЯ ТИПИЗАЦИЯ ─────────────────────────────────────────
 interface Parcel { 
   id: string; 
@@ -67,10 +69,12 @@ export default function AnalyticsPage() {
   useEffect(() => {
     const fetchAllData = async () => {
       try {
-        const [resParcels, resPartners] = await Promise.all([
-          fetch('/api/parcels').catch(() => ({ ok: false, json: () => ({ parcels: [] }) })), 
-          fetch('/api/partners').catch(() => ({ ok: false, json: () => ({ partners: [] }) }))
-        ])
+        // ВСТАВЬ ВМЕСТО НИХ:
+      const t = new Date().getTime(); // Создаем уникальную метку времени
+      const [resParcels, resPartners] = await Promise.all([
+        fetch(`/api/parcels?t=${t}`, { cache: 'no-store' }).catch(() => ({ ok: false, json: () => ({ parcels: [] }) })), 
+        fetch(`/api/partners?t=${t}`, { cache: 'no-store' }).catch(() => ({ ok: false, json: () => ({ partners: [] }) }))
+      ])
         
         const dataParcels: ParcelsResponse = resParcels.ok ? await resParcels.json() : { parcels: [] }
         const dataPartners: PartnersResponse = resPartners.ok ? await resPartners.json() : { partners: [] }
@@ -79,13 +83,16 @@ export default function AnalyticsPage() {
         if (dataPartners.partners) setPartners(dataPartners.partners)
         
         if (dataParcels.parcels) {
-          setParcels(dataParcels.parcels.map((p: any) => ({
-            ...p, 
-            value: Number(p.value || 0), 
-            weight: Number(p.weight || 0),
-            recipient: p.recipient === 'Я' ? (dataPartners.ownerName || 'Владелец') : (p.recipient || 'Владелец')
-          })))
-        }
+  setParcels(dataParcels.parcels.map((p: any) => ({
+    ...p, 
+    value: Number(p.value || 0), 
+    weight: Number(p.weight || 0),
+    // Если recipientName пустой или равен "Владелец", подставляем реальное имя владельца, иначе — имя партнера
+    recipient: (!p.recipientName || p.recipientName === 'Владелец') 
+      ? (dataPartners.ownerName || 'Владелец') 
+      : p.recipientName
+  })))
+}
       } catch (err) { 
         console.error('Ошибка аналитики:', err) 
       } finally { 

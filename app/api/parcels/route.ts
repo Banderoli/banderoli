@@ -54,7 +54,9 @@ export async function POST(req: NextRequest) {
     }
 
     let partnerId = null;
-    let recipientName = "Владелец";
+    // Сначала пытаемся взять имя из профиля пользователя
+    const owner = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    let recipientName = owner?.name || "Владелец";
     if (body.partner && body.partner.trim() !== '') {
       const partner = await prisma.partner.findFirst({
         where: { userId, name: { equals: body.partner.trim(), mode: 'insensitive' } }

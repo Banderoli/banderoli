@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
-import { Parcel } from '@prisma/client'; // 🔥 ИМПОРТИРУЕМ ИДЕАЛЬНЫЙ ТИП НАПРЯМУЮ ИЗ БАЗЫ
+import { Parcel } from '@prisma/client'; 
 
-/**
- * Проверяет авторизацию пользователя
- */
 async function getUserId(): Promise<string | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
@@ -21,23 +18,41 @@ async function getUserId(): Promise<string | null> {
 }
 
 /**
- * Серверный движок расчета вероятности растаможки
+ * 🔥 СЕРВЕРНЫЙ ДВИЖОК РИСКОВ:
+ * Считает суммы и столкновения только для каждого получателя в отдельности!
  */
 function calculateParcelRiskPercentage(current: Parcel, allParcels: Parcel[]): number {
   const status = current.status.toLowerCase();
-  // Исключаем доставленные, утерянные и архивные из расчета рисков
   if (status === 'доставлено' || status === 'утеряно' || status === 'в архиве') return 0;
   
-  const val = Number(current.value) || 0;
-  if (val >= 300) return 100; 
+  const currentRecipient = current.recipientName || 'Владелец';
+  
+  // 1. Собираем активные посылки ТОЛЬКО ЭТОГО получателя
+  let totalValue = 0;
+  let totalWeight = 0;
+  
+  const activeParcels = allParcels.filter(p => {
+    const pStatus = p.status.toLowerCase();
+    return pStatus !== 'доставлено' && pStatus !== 'утеряно' && pStatus !== 'в архиве';
+  });
+
+  activeParcels.forEach(p => {
+    const pRec = p.recipientName || 'Владелец';
+    if (pRec === currentRecipient) {
+      totalValue += Number(p.value) || 0;
+      totalWeight += Number(p.weight) || 0;
+    }
+  });
+
+  // Если этот конкретный человек уже превысил лимит — риск 100%
+  if (totalValue >= 300 || totalWeight >= 30) return 100; 
 
   let riskPercentage = 0;
   
-  if (val >= 200) riskPercentage += 35;
-  else if (val >= 100) riskPercentage += 15;
+  if (totalValue >= 200) riskPercentage += 35;
+  else if (totalValue >= 100) riskPercentage += 15;
   else riskPercentage += 5;
 
-  // ИСПОЛЬЗУЕМ ПРАВИЛЬНОЕ ПОЛЕ expectedDelivery
   if (!current.expectedDelivery) return riskPercentage;
   const currentFieldsTime = new Date(current.expectedDelivery).getTime();
 
@@ -45,22 +60,26 @@ function calculateParcelRiskPercentage(current: Parcel, allParcels: Parcel[]): n
   let hasDifferentCarrierCollision = false;
   let hasShopCollision = false;
 
-  allParcels.forEach((p: Parcel) => {
-    const pStatus = p.status.toLowerCase();
-    if (p.id === current.id || pStatus === 'доставлено' || pStatus === 'утеряно' || pStatus === 'в архиве' || !p.expectedDelivery) return;
+  activeParcels.forEach((p: Parcel) => {
+    if (p.id === current.id || !p.expectedDelivery) return;
+    
+    // Проверяем столкновения посылок ТОЛЬКО для одного и того же получателя
+    const pRec = p.recipientName || 'Владелец';
+    if (pRec !== currentRecipient) return; 
     
     const pTime = new Date(p.expectedDelivery).getTime();
     const dayDiff = Math.abs(pTime - currentFieldsTime) / 86400000;
 
-    // ИСПОЛЬЗУЕМ ПРАВИЛЬНОЕ ПОЛЕ recipientName
-    if (dayDiff <= 4 && p.recipientName === current.recipientName && current.recipientName) {
-      if (p.carrier === current.carrier && current.carrier) {
+    if (dayDiff <= 4) {
+      const cCarrier = current.carrier || 'Не указан';
+      const pCarrier = p.carrier || 'Не указан';
+      
+      if (pCarrier === cCarrier && cCarrier !== 'Не указан') {
         hasCarrierCollision = true;
-      } else {
+      } else if (cCarrier !== 'Не указан' && pCarrier !== 'Не указан') {
         hasDifferentCarrierCollision = true;
       }
       
-      // ИСПОЛЬЗУЕМ ПРАВИЛЬНОЕ ПОЛЕ shop (или name как запасной вариант)
       const pShop = p.shop || p.name;
       const cShop = current.shop || current.name;
       if (pShop.toLowerCase() === cShop.toLowerCase()) {
@@ -81,7 +100,6 @@ export async function GET(req: NextRequest) {
     const userId = await getUserId();
     if (!userId) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
 
-    // Получаем посылки (TypeScript теперь сам знает все поля благодаря импорту Prisma)
     const parcels: Parcel[] = await prisma.parcel.findMany({
       where: { userId },
       orderBy: { createdAt: 'asc' }
@@ -91,14 +109,12 @@ export async function GET(req: NextRequest) {
     const deliveredCount = parcels.filter(p => p.status.toLowerCase() === 'доставлено').length;
     const lostCount = parcels.filter(p => p.status.toLowerCase() === 'утеряно').length;
 
-    // Безопасное сложение денег
     let totalCents = 0;
     parcels.forEach((p: Parcel) => { 
       totalCents += Math.round(((Number(p.value) || 0) + Number.EPSILON) * 100); 
     });
     const totalSpent = (totalCents / 100).toFixed(2);
 
-    // Группировка посылок по зонам риска
     let lowRiskCount = 0;
     let medRiskCount = 0;
     let highRiskCount = 0;
@@ -113,7 +129,6 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Безопасный подсчет перевозчиков (учитываем, что перевозчик может быть не указан)
     const carrierCounts: Record<string, number> = {};
     parcels.forEach((p: Parcel) => {
       const carrierName = p.carrier || 'Не указан';
