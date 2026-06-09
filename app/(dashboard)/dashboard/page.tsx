@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Package, Plane, AlertTriangle, CheckCircle, MessageCircle, Plus,
-  Calculator, Loader2, Clock, ShieldAlert, CloudRain, Cloud, Sun,
+  Loader2, Clock, ShieldAlert, CloudRain, Cloud, Sun,
   Weight, Store, Truck, User, Tag, QrCode, CalendarClock,
   ChevronDown, ChevronUp, TrendingUp, Archive, Timer, CheckCircle2,
-  AlertCircle, ArrowUpCircle, Activity, Edit2, XCircle, Trash2
+  AlertCircle, ArrowUpCircle, Activity, Edit2, XCircle, Trash2,
+  Banknote, Search // 🔥 ДОБАВЛЕНА ИКОНКА ПОИСКА
 } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════
@@ -94,13 +95,15 @@ export default function DashboardPage() {
   const [loading,    setLoading]    = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   
-  // 🔥 НОВОЕ: Состояние для хранения списка партнеров
   const [partnersList, setPartnersList] = useState<{id: string, name: string}[]>([])
   
   const [editingParcelId, setEditingParcelId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<Parcel>>({})
 
   const [weather, setWeather] = useState<{ temp: string; condition: string; icon: WeatherIcon }>({ temp: '--', condition: 'Загрузка…', icon: 'unknown' })
+
+  // 🔥 НОВОЕ: Состояние для строки поиска
+  const [searchQuery, setSearchQuery] = useState('')
 
   // ── Загрузка ─────────────────────────────────────────────
   useEffect(() => {
@@ -118,7 +121,6 @@ export default function DashboardPage() {
         if (rPr.ok) {
           const d = await rPr.json()
           if (d.ownerName) setUserName(d.ownerName.split(' ')[0])
-          // 🔥 НОВОЕ: Сохраняем список партнеров из базы
           if (d.partners) setPartnersList(d.partners)
         }
       } catch { setParcels(DEMO) } 
@@ -233,22 +235,68 @@ export default function DashboardPage() {
     }
   }
 
-  // ── Вычисления ───────────────────────────────────────────────
+  // ── Вычисления и Логика ─────────────────────────
   const active    = useMemo(() => parcels.filter(p => !['доставлено','утеряно'].includes(p.status.toLowerCase())), [parcels])
   const delivered = useMemo(() => parcels.filter(p => p.status.toLowerCase() === 'доставлено'), [parcels])
   const inTransit = useMemo(() => active.filter(p => p.status.toLowerCase() === 'в пути'), [active])
 
-  const totalVal = useMemo(() => active.reduce((s, p) => s + Number(p.value  ?? 0), 0), [active])
-  const totalWt  = useMemo(() => active.reduce((s, p) => s + Number(p.weight ?? 0), 0), [active])
+  // 🔥 НОВОЕ: Логика фильтрации поиска (Только для активных посылок)
+  const filteredActive = useMemo(() => {
+    if (!searchQuery.trim()) return active;
+    
+    const query = searchQuery.toLowerCase().trim();
+    
+    return active.filter(p => {
+      // Ищем по названию товара
+      const matchName = p.name.toLowerCase().includes(query);
+      // Ищем по трек-коду
+      const matchTrack = p.trackCode.toLowerCase().includes(query);
+      // Ищем по имени получателя
+      const recipient = (p.recipientName || p.partner || userName || 'Владелец').toLowerCase();
+      const matchRecipient = recipient.includes(query);
+      // Ищем по дате
+      const expectedDate = p.expectedDelivery ? new Date(p.expectedDelivery).toLocaleDateString('ru-RU') : '';
+      const matchDate = expectedDate.includes(query);
 
-  const valPct  = Math.min((totalVal / PRICE_LIMIT)  * 100, 100)
-  const wtPct   = Math.min((totalWt  / WEIGHT_LIMIT) * 100, 100)
-  const valOver = totalVal >= PRICE_LIMIT   
-  const wtOver  = totalWt  >= WEIGHT_LIMIT  
-  const anyRisk = valOver || wtOver
-  const taxEst  = valOver ? totalVal * VAT + CUSTOMS_FEE : 0
+      return matchName || matchTrack || matchRecipient || matchDate;
+    });
+  }, [active, searchQuery, userName]);
 
   const avgRisk = active.length ? Math.round(active.reduce((s, p) => s + (p.riskScore ?? 0), 0) / active.length) : 0
+
+  // Логика таможни (Рассчитывается всегда по ВСЕМ активным, игнорируя поиск)
+  const customsAlerts = useMemo(() => {
+    const userStats: Record<string, { sum: number; weight: number; parcels: Parcel[] }> = {};
+
+    active.forEach(p => {
+      const rName = p.recipientName || p.partner || userName || 'Владелец';
+      if (!userStats[rName]) userStats[rName] = { sum: 0, weight: 0, parcels: [] };
+      userStats[rName].sum += Number(p.value || 0);
+      userStats[rName].weight += Number(p.weight || 0);
+      userStats[rName].parcels.push(p);
+    });
+
+    const flagged: Array<{ parcel: Parcel; recipient: string; reason: string; taxEst: number }> = [];
+
+    Object.entries(userStats).forEach(([rName, stats]) => {
+      const overPrice = stats.sum >= PRICE_LIMIT;
+      const overWeight = stats.weight >= WEIGHT_LIMIT;
+
+      if (overPrice || overWeight) {
+        const taxEst = overPrice ? stats.sum * VAT + CUSTOMS_FEE : 0;
+        let reason = '';
+        if (overPrice && overWeight) reason = `Цена (${stats.sum}₾) и Вес (${stats.weight}кг)`;
+        else if (overPrice) reason = `Цена: ${stats.sum.toFixed(0)}₾ (>300₾)`;
+        else reason = `Вес: ${stats.weight.toFixed(1)}кг (>30кг)`;
+
+        stats.parcels.forEach(p => {
+          flagged.push({ parcel: p, recipient: rName, reason, taxEst });
+        });
+      }
+    });
+
+    return flagged;
+  }, [active, userName]);
 
   const getStatusUI = (st: string) => {
     const s = st.toLowerCase()
@@ -297,6 +345,9 @@ export default function DashboardPage() {
 
         .card-hover { transition: box-shadow .18s, transform .18s }
         .card-hover:hover { box-shadow: 0 8px 32px -4px rgba(99,102,241,.13); transform: translateY(-1px); }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 py-6 px-4 md:px-8">
@@ -350,26 +401,55 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 fade-up-2">
             <div className="lg:col-span-2">
-              <div className="bg-white/90 backdrop-blur-sm rounded-3xl border border-white shadow-sm overflow-hidden">
-                <div className="px-5 sm:px-7 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-                  <h2 className="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
-                    <Activity size={18} className="text-indigo-500"/>
-                    Активные грузы
-                  </h2>
-                  <Link href="/archive" className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1">
-                    <Archive size={13}/>Архив
-                  </Link>
+              <div className="bg-white/90 backdrop-blur-sm rounded-3xl border border-white shadow-sm overflow-hidden flex flex-col min-h-[400px]">
+                
+                {/* 🔥 НОВОЕ: Шапка со строкой поиска 🔥 */}
+                <div className="px-5 sm:px-7 py-5 border-b border-slate-100 flex flex-col gap-4 bg-slate-50/60 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                      <Activity size={18} className="text-indigo-500"/>
+                      Активные грузы
+                    </h2>
+                    <Link href="/archive" className="text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm transition-all hover:shadow-md">
+                      <Archive size={13}/>Архив
+                    </Link>
+                  </div>
+                  
+                  <div className="relative group">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18}/>
+                    <input 
+                      type="text" 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Поиск по названию, треку, получателю или дате..." 
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm bg-white font-medium transition-all shadow-sm"
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors">
+                        <XCircle size={16}/>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {active.length === 0 ? (
-                  <div className="p-16 flex flex-col items-center text-center text-slate-400">
+                  <div className="p-16 flex flex-col items-center justify-center flex-1 text-center text-slate-400">
                     <div className="p-5 bg-slate-50 rounded-full mb-4"><Package size={40} className="text-slate-300"/></div>
                     <p className="font-bold text-slate-600 mb-1">Нет активных посылок</p>
                     <p className="text-sm">Все отправления доставлены или ещё не добавлены.</p>
                   </div>
+                ) : filteredActive.length === 0 ? (
+                  /* Пустое состояние при отсутствии результатов поиска */
+                  <div className="p-16 flex flex-col items-center justify-center flex-1 text-center text-slate-400">
+                    <div className="p-4 bg-slate-50 rounded-full mb-4"><Search size={32} className="text-slate-300"/></div>
+                    <p className="font-bold text-slate-600 mb-1">Ничего не найдено</p>
+                    <p className="text-sm">По запросу «{searchQuery}» нет совпадений.</p>
+                    <button onClick={() => setSearchQuery('')} className="mt-4 text-sm font-bold text-indigo-600 hover:text-indigo-700">Сбросить поиск</button>
+                  </div>
                 ) : (
-                  <div className="divide-y divide-slate-100">
-                    {active.map(parcel => {
+                  <div className="divide-y divide-slate-100 flex-1 overflow-y-auto">
+                    {/* 🔥 ИСПОЛЬЗУЕМ filteredActive ВМЕСТО active 🔥 */}
+                    {filteredActive.map(parcel => {
                       const stUI  = getStatusUI(parcel.status)
                       const sched = scheduleUI(parcel.deliveryScheduleStatus, parcel.scheduleDeltaDays)
                       const risk  = parcel.riskScore ?? 0 
@@ -474,60 +554,69 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="space-y-4 fade-up-3">
-              <div className={`bg-white/90 backdrop-blur-sm p-5 sm:p-6 rounded-3xl border shadow-sm transition-colors ${anyRisk ? 'border-rose-200 bg-rose-50/20' : 'border-white'}`}>
-                <div className="flex items-center gap-3 mb-5">
-                  <div className={`p-2.5 rounded-2xl ${anyRisk ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500'}`}><Calculator size={20}/></div>
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-sm">Таможенный лимит</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Закон Грузии</p>
+            <div className="space-y-4 fade-up-3 flex flex-col h-full">
+              
+              {/* ── ТАМОЖЕННЫЙ ЛИМИТ (НОВАЯ ВЕРСИЯ С ТРЕК-КОДАМИ) ── */}
+              <div className={`bg-white/90 backdrop-blur-sm p-5 sm:p-6 rounded-3xl border shadow-sm transition-colors flex flex-col ${customsAlerts.length > 0 ? 'border-rose-200 bg-rose-50/20' : 'border-white'}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-2xl ${customsAlerts.length > 0 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500'}`}>
+                      {customsAlerts.length > 0 ? <ShieldAlert size={20}/> : <CheckCircle size={20}/>}
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-slate-900 text-sm">Таможенный лимит</h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">RS.GE · Закон Грузии</p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between items-end mb-1.5">
-                      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1"><Tag size={11}/>Сумма активных</span>
-                      <span className={`text-lg font-black leading-none ${valOver ? 'text-rose-600' : 'text-slate-900'}`}>
-                        {totalVal.toFixed(0)} <span className="text-xs text-slate-400 font-semibold ml-1">/ {PRICE_LIMIT} ₾</span>
-                      </span>
-                    </div>
-                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-1000 ${valOver ? 'bg-rose-500' : 'bg-indigo-500'}`} style={{ width: `${valPct}%` }} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between items-end mb-1.5">
-                      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1"><Weight size={11}/>Вес активных</span>
-                      <span className={`text-lg font-black leading-none ${wtOver ? 'text-rose-600' : 'text-slate-900'}`}>
-                        {totalWt.toFixed(2)} <span className="text-xs text-slate-400 font-semibold ml-1">/ {WEIGHT_LIMIT} кг</span>
-                      </span>
-                    </div>
-                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-1000 ${wtOver ? 'bg-rose-500' : 'bg-teal-500'}`} style={{ width: `${wtPct}%` }} />
-                    </div>
-                  </div>
-
-                  {anyRisk ? (
-                    <div className="p-3.5 bg-white rounded-2xl border border-rose-200 flex items-start gap-3">
-                      <ShieldAlert size={17} className="text-rose-500 flex-shrink-0 mt-0.5"/>
-                      <div>
-                        <p className="font-black text-rose-800 text-sm">Лимит превышен!</p>
-                        {valOver && <p className="text-xs text-rose-700 mt-0.5 leading-snug">Цена &gt;300 ₾ — пошлина ~<strong>{taxEst.toFixed(0)} ₾</strong></p>}
-                        {wtOver && <p className="text-xs text-rose-700 mt-0.5 leading-snug">Вес &gt;30 кг — возможна задержка.</p>}
+                <div className="flex-1">
+                  {customsAlerts.length > 0 ? (
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold text-rose-700 bg-rose-100/50 p-2 rounded-xl border border-rose-100 leading-snug">
+                        Внимание! Эти посылки требуют декларирования. Подготовьте инвойсы:
+                      </p>
+                      
+                      <div className="max-h-[220px] overflow-y-auto no-scrollbar space-y-2 pr-1">
+                        {customsAlerts.map((alert, idx) => (
+                          <div key={idx} className="p-3 bg-white border border-rose-200 rounded-2xl shadow-sm relative overflow-hidden group">
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-400"></div>
+                            
+                            <div className="flex justify-between items-start mb-1">
+                              <span className="text-xs font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded select-all">
+                                {alert.parcel.trackCode}
+                              </span>
+                              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
+                                {alert.reason}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1.5">
+                              <User size={12} className="text-slate-400" />
+                              <span className="font-medium truncate">{alert.recipient}</span>
+                            </div>
+                            
+                            {alert.taxEst > 0 && (
+                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1">
+                                <Banknote size={11} className="text-slate-300" />
+                                Ожид. пошлина: <span className="font-bold text-slate-600">~{alert.taxEst.toFixed(0)} ₾</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
-                      <CheckCircle size={17} className="text-emerald-500 flex-shrink-0"/>
-                      <p className="text-xs text-slate-600 font-medium">Беспошлинный порог не превышен.</p>
+                    <div className="h-full min-h-[120px] flex flex-col items-center justify-center text-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <CheckCircle size={32} className="text-emerald-400 mb-2"/>
+                      <p className="text-sm font-bold text-slate-700">Все лимиты в норме</p>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">Ни один получатель не превысил порог в 300 ₾ или 30 кг.</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="bg-white/90 backdrop-blur-sm p-5 sm:p-6 rounded-3xl border border-white shadow-sm">
+              <div className="bg-white/90 backdrop-blur-sm p-5 sm:p-6 rounded-3xl border border-white shadow-sm mt-auto">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2.5 bg-amber-50 text-amber-500 rounded-2xl"><TrendingUp size={18}/></div>
                   <div>
@@ -540,7 +629,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-5 sm:p-6 rounded-3xl shadow-md text-white relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-5 sm:p-6 rounded-3xl shadow-md text-white relative overflow-hidden group mt-auto">
                 <div className="absolute -right-5 -bottom-5 opacity-10 group-hover:scale-110 transition-transform duration-500"><MessageCircle size={120}/></div>
                 <div className="relative z-10">
                   <div className="flex items-center gap-2.5 mb-2">
@@ -601,7 +690,6 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex gap-4">
-                {/* 🔥 НОВОЕ: ВЫПАДАЮЩИЙ СПИСОК ВМЕСТО INPUT 🔥 */}
                 <div className="flex-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">Получатель</label>
                   <select 
