@@ -324,19 +324,22 @@ export default function AnalyticsPage() {
             </div>
 
             {/* ── КРУГЛЫЙ ГРАФИК (RECHARTS) ── */}
-            <div className="h-56 w-full relative mb-4">
+            {/* ── КРУГЛЫЙ ГРАФИК (ИДЕАЛЬНАЯ ВЕРСТКА ДЛЯ NEXT.JS) ── */}
+            <div className="w-full flex justify-center items-center min-h-[250px] mb-4">
               {partnerExpenses.length === 0 ? (
-                <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">Нет данных</div>
+                <div className="w-full flex items-center justify-center text-slate-400 font-medium bg-slate-50 rounded-2xl min-h-[250px]">
+                  Нет данных
+                </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
                       data={partnerExpenses}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={5}
+                      innerRadius={65}
+                      outerRadius={95}
+                      paddingAngle={4}
                       dataKey="sum"
                       nameKey="name"
                     >
