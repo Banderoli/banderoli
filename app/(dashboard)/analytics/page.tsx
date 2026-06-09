@@ -7,6 +7,8 @@ import {
   User, Plane, Clock, CloudLightning, Wind, CloudSnow,
   Scale, Banknote
 } from 'lucide-react'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#f43f5e'];
 
 export const dynamic = 'force-dynamic';
 
@@ -310,55 +312,66 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* Инфографика расходов + Разбивка по партнерам */}
+          {/* Инфографика расходов + Разбивка по партнерам */}
           <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><TrendingUp size={20} /></div>
-                <h2 className="text-xl font-extrabold text-slate-900 text-fix">Динамика расходов</h2>
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <TrendingUp size={20} />
+                </div>
+                <h2 className="text-xl font-extrabold text-slate-900 text-fix">Расходы по получателям</h2>
               </div>
-              <span className="text-xs font-bold text-slate-400 uppercase bg-slate-50 px-3 py-1 rounded-full">GEL (₾)</span>
             </div>
-            
-            {/* График */}
-            <div className="flex items-end justify-between h-48 gap-2 mt-auto pb-6 relative z-10 border-b border-slate-100">
-              <div className="absolute inset-0 flex flex-col justify-between border-b border-slate-100 pb-8 pointer-events-none">
-                <div className="w-full border-b border-dashed border-slate-100 opacity-50"></div>
-                <div className="w-full border-b border-dashed border-slate-100 opacity-50"></div>
-              </div>
 
-              {monthlyStats.length === 0 ? (
-                  <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">Нет данных</div>
+            {/* ── КРУГЛЫЙ ГРАФИК (RECHARTS) ── */}
+            <div className="h-56 w-full relative mb-4">
+              {partnerExpenses.length === 0 ? (
+                <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">Нет данных</div>
               ) : (
-                  monthlyStats.map((s, i) => {
-                      const heightPercent = Math.max((s.total / maxExpense) * 100, 5); 
-                      return (
-                          <div key={i} className="flex-1 flex flex-col items-center gap-2 group h-full justify-end relative z-10">
-                              <div className="w-full max-w-[32px] bg-slate-50 rounded-t-xl relative flex items-end justify-center h-full">
-                                  <div className="w-full bg-gradient-to-t from-indigo-500 to-indigo-400 rounded-t-xl transition-all duration-700 relative" style={{ height: `${heightPercent}%` }}>
-                                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-slate-800 text-white text-[10px] font-bold py-1 px-2 rounded-lg transition-all shadow-xl pointer-events-none z-20">
-                                          {s.total.toFixed(0)} ₾
-                                      </span>
-                                  </div>
-                              </div>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">{s.month}</span>
-                          </div>
-                      )
-                  })
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={partnerExpenses}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={5}
+                      dataKey="sum"
+                      nameKey="name"
+                    >
+                      {partnerExpenses.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: any) => [`${Number(value || 0).toFixed(2)} ₾`, 'Сумма']}
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 20px -2px rgb(0 0 0 / 0.1)' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               )}
             </div>
 
-            {/* Доля партнеров */}
-            <div className="mt-5 space-y-3">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Затраты по получателям</h3>
+            {/* ── ЛЕГЕНДА (ДОЛЯ ПАРТНЕРОВ) ── */}
+            <div className="mt-auto space-y-3 pt-4 border-t border-slate-100">
               {partnerExpenses.map((p, i) => (
                 <div key={i} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2 min-w-0">
-                    <User size={14} className="text-slate-400 flex-shrink-0" />
+                    <div 
+                      className="w-3 h-3 rounded-full flex-shrink-0" 
+                      style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                    ></div>
                     <span className="font-bold text-slate-700 truncate text-fix">{p.name}</span>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <span className="font-black text-slate-900 text-fix">{p.sum.toFixed(0)} ₾</span>
-                    <span className="text-xs font-bold text-indigo-500 w-8 text-right">{p.percent}%</span>
+                    <span 
+                      className="text-xs font-bold w-8 text-right" 
+                      style={{ color: COLORS[i % COLORS.length] }}
+                    >
+                      {p.percent}%
+                    </span>
                   </div>
                 </div>
               ))}
