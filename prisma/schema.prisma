@@ -85,10 +85,10 @@ model Parcel {
   comment          String?
   
   // Вычисляемые риски
-  hubWeatherRisk   Int       @default(0)
-  flightDelayRisk  Int       @default(0)
-  customsRiskScore Int       @default(0)
-  collisionRisk    Int       @default(0) // Вероятность встречи на таможне
+  hubWeatherRisk   Float      @default(0)
+  flightDelayRisk  Float      @default(0)
+  customsRiskScore Float      @default(0)
+  collisionRisk    Float      @default(0) // Вероятность встречи на таможне
 
   // Поля для дашборда
   deliveryScheduleStatus String? @default("unknown")

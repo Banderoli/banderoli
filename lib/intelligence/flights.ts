@@ -25,7 +25,7 @@ export async function checkFlightDelays() {
     const baseRisk = HUB_CONGESTION[hub] || 15;
     
     // Если посылка уже имеет высокий погодный риск, рейс почти гарантированно задержится
-    const weatherImpact = parcel.hubWeatherRisk > 60 ? 40 : 0;
+    const weatherImpact = (parcel.hubWeatherRisk ?? 0) > 60 ? 40 : 0;
     
     // Добавляем элемент случайности (от -10 до +20) для симуляции реального расписания
     const randomFactor = Math.floor(Math.random() * 30) - 10;
