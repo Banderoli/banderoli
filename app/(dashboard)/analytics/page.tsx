@@ -8,6 +8,7 @@ import {
   Scale, Banknote
 } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#f43f5e'];
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,9 @@ interface Parcel {
 interface Partner { 
   id: string; 
   name: string; 
-  isActive: boolean; 
+  available?: number; 
+  isRecommended?: boolean;
+  isActive?: boolean;
 }
 
 interface ParcelsResponse {
@@ -67,36 +70,55 @@ export default function AnalyticsPage() {
 
   const API_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || '558d45f34dad570eafe1838f24dcc922'
 
-  // ── ЗАГРУЗКА ДАННЫХ ─────────────────────────────────────────
+  // ── ЗАГРУЗКА ДАННЫХ (БРОНЕБОЙНАЯ ВЕРСИЯ) ────────────────────
   useEffect(() => {
     const fetchAllData = async () => {
       try {
-        // ВСТАВЬ ВМЕСТО НИХ:
-      const t = new Date().getTime(); // Создаем уникальную метку времени
-      const [resParcels, resPartners] = await Promise.all([
-        fetch(`/api/parcels?t=${t}`, { cache: 'no-store' }).catch(() => ({ ok: false, json: () => ({ parcels: [] }) })), 
-        fetch(`/api/partners?t=${t}`, { cache: 'no-store' }).catch(() => ({ ok: false, json: () => ({ partners: [] }) }))
-      ])
+        const t = new Date().getTime(); 
+        const [resParcels, resPartners] = await Promise.all([
+          fetch(`/api/parcels?t=${t}`, { cache: 'no-store' }).catch(() => ({ ok: false, json: () => ({ parcels: [] }) })), 
+          fetch(`/api/partners?t=${t}`, { cache: 'no-store' }).catch(() => ({ ok: false, json: () => ({ partners: [] }) }))
+        ])
         
         const dataParcels: ParcelsResponse = resParcels.ok ? await resParcels.json() : { parcels: [] }
         const dataPartners: PartnersResponse = resPartners.ok ? await resPartners.json() : { partners: [] }
         
-        if (dataPartners.ownerName) setOwnerName(dataPartners.ownerName)
-        if (dataPartners.partners) setPartners(dataPartners.partners)
+        const currentOwner = dataPartners.ownerName || 'Владелец';
+        setOwnerName(currentOwner);
+
+        // 1. Умная загрузка партнеров (исключает потерю при любых ответах API)
+        let loadedPartners: Partner[] = [];
+        if (dataPartners.partners && Array.isArray(dataPartners.partners)) {
+          loadedPartners = dataPartners.partners;
+        }
+
+        // Гарантируем, что Владелец всегда есть в списке первым
+        const hasOwner = loadedPartners.some(p => p.id === 'owner' || p.name === currentOwner);
+        if (!hasOwner) {
+          loadedPartners = [
+            { id: 'owner', name: currentOwner, available: 300 },
+            ...loadedPartners
+          ];
+        }
+        setPartners(loadedPartners);
         
+        // 2. Умная привязка посылок (восстанавливает даже старые данные БД)
         if (dataParcels.parcels) {
-  setParcels(dataParcels.parcels.map((p: any) => ({
-    ...p, 
-    value: Number(p.value || 0), 
-    weight: Number(p.weight || 0),
-    // Если recipientName пустой или равен "Владелец", подставляем реальное имя владельца, иначе — имя партнера
-    recipient: (!p.recipientName || p.recipientName === 'Владелец') 
-      ? (dataPartners.ownerName || 'Владелец') 
-      : p.recipientName
-  })))
-}
+          setParcels(dataParcels.parcels.map((p: any) => {
+            let rName = p.recipient || p.recipientName || p.partner?.name || 'Владелец';
+            if (rName === 'Владелец') rName = currentOwner;
+
+            return {
+              ...p, 
+              value: Number(p.value || 0), 
+              weight: Number(p.weight || 0),
+              recipient: rName
+            }
+          }))
+        }
       } catch (err) { 
         console.error('Ошибка аналитики:', err) 
+        setPartners([{ id: 'owner', name: 'Владелец' }]);
       } finally { 
         setLoading(false) 
       }
@@ -105,15 +127,13 @@ export default function AnalyticsPage() {
     const fetchWeather = async () => {
       const results = await Promise.all(HUB_CONFIG.map(async (hub): Promise<WeatherInfo> => {
         try {
-          // Используем прогноз погоды (forecast) для получения данных на завтра
           const res = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${hub.query}&appid=${API_KEY}&units=metric&lang=ru`);
           if (!res.ok) throw new Error('API Error');
           const data = await res.json();
           
           const current = data.list[0];
-          const tomorrow = data.list[8] || data.list[data.list.length - 1]; // +24 часа (8 шагов по 3 часа)
+          const tomorrow = data.list[8] || data.list[data.list.length - 1]; 
           
-          // Определение иконки
           const mainWeather = current.weather[0].main;
           let iconType: WeatherInfo['iconType'] = 'unknown';
           if (mainWeather === 'Clear') iconType = 'clear';
@@ -122,10 +142,8 @@ export default function AnalyticsPage() {
           else if (mainWeather === 'Snow') iconType = 'snow';
           else if (mainWeather === 'Thunderstorm') iconType = 'storm';
 
-          // Логика нелетной погоды: сильный ветер (>15 м/с), гроза, снег, плохая видимость
           const isFlightRisk = ['Thunderstorm', 'Snow', 'Tornado', 'Squall', 'Ash'].includes(mainWeather) || current.wind.speed > 15;
 
-          // Местное время хаба
           const localTime = new Intl.DateTimeFormat('ru-RU', { 
             timeZone: hub.tz, hour: '2-digit', minute: '2-digit' 
           }).format(new Date());
@@ -157,10 +175,9 @@ export default function AnalyticsPage() {
   // ── МАТЕМАТИКА И ЛОГИКА ─────────────────────────────────────
   
   const activeParcels = useMemo(() => 
-    parcels.filter(p => !['доставлено', 'утеряно'].includes(p.status.toLowerCase())), 
+    parcels.filter(p => !['доставлено', 'утеряно'].includes((p.status || '').toLowerCase())), 
   [parcels])
   
-  // Расчет сумм и веса по партнерам
   const getPartnerStats = (name: string) => {
     const pList = activeParcels.filter(p => p.recipient === name);
     return {
@@ -169,23 +186,6 @@ export default function AnalyticsPage() {
     }
   };
 
-  // Хронология расходов (График)
-  const monthlyStats = useMemo(() => {
-    const stats: Record<string, { total: number, date: Date }> = {};
-    parcels.forEach(p => {
-      const date = new Date(p.purchaseDate || p.createdAt);
-      const monthLabel = date.toLocaleString('ru-RU', { month: 'short' }).replace('.', ''); 
-      if (!stats[monthLabel]) stats[monthLabel] = { total: 0, date };
-      stats[monthLabel].total += p.value;
-    });
-    return Object.entries(stats)
-      .map(([month, data]) => ({ month, total: data.total, timestamp: data.date.getTime() }))
-      .sort((a, b) => a.timestamp - b.timestamp);
-  }, [parcels]);
-
-  const maxExpense = Math.max(...monthlyStats.map(s => s.total), 1);
-
-  // Расходы по всем партнерам для виджета "Динамика"
   const partnerExpenses = useMemo(() => {
     const expenses: Record<string, number> = {};
     parcels.forEach(p => { expenses[p.recipient] = (expenses[p.recipient] || 0) + p.value; });
@@ -195,7 +195,6 @@ export default function AnalyticsPage() {
       .sort((a, b) => b.sum - a.sum);
   }, [parcels]);
 
-  // Службы доставки
   const carrierStats = useMemo(() => {
     const counts: Record<string, number> = {};
     parcels.forEach(p => { counts[p.carrier] = (counts[p.carrier] || 0) + 1; });
@@ -231,17 +230,9 @@ export default function AnalyticsPage() {
 
   return (
     <>
-      {/* ЖЕСТКИЙ ФИКС ТЕКСТА ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ */}
       <style>{`
-        .text-fix {
-          color: #0f172a !important;
-          -webkit-text-fill-color: #0f172a !important;
-          opacity: 1 !important;
-        }
-        .text-fix-light {
-          color: #64748b !important;
-          -webkit-text-fill-color: #64748b !important;
-        }
+        .text-fix { color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; opacity: 1 !important; }
+        .text-fix-light { color: #64748b !important; -webkit-text-fill-color: #64748b !important; }
       `}</style>
 
       <div className="py-6 space-y-8 animate-fade-in max-w-7xl mx-auto px-4 md:px-8 min-h-screen">
@@ -257,7 +248,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* 1. ПОГОДА В ХАБАХ (С АВИА-РИСКАМИ И ВРЕМЕНЕМ) */}
+        {/* 1. ПОГОДА В ХАБАХ */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {weatherData.length === 0 ? (
              <div className="col-span-full text-center p-8 text-slate-400">Данные погоды загружаются...</div>
@@ -265,14 +256,11 @@ export default function AnalyticsPage() {
             const style = getWeatherStyle(w.iconType, w.isFlightRisk);
             return (
               <div key={idx} className={`bg-gradient-to-br ${style.bg} p-5 rounded-3xl border shadow-sm flex flex-col relative overflow-hidden group transition-all hover:shadow-md`}>
-                
-                {/* Индикатор нелетной погоды */}
                 {w.isFlightRisk && (
                   <div className="absolute top-0 right-0 bg-rose-500 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl shadow-sm flex items-center gap-1 z-20">
                     <AlertTriangle size={10} /> Нелетная погода
                   </div>
                 )}
-
                 <div className="flex justify-between items-start z-10 mb-2">
                   <div className="p-2.5 bg-white/60 backdrop-blur-sm rounded-xl shadow-sm">
                     {style.icon}
@@ -282,15 +270,12 @@ export default function AnalyticsPage() {
                     <p className="text-[10px] font-bold text-slate-500 uppercase">{w.condition}</p>
                   </div>
                 </div>
-
                 <div className="z-10 mt-1">
                   <h3 className="text-sm font-extrabold text-slate-900 text-fix">{w.hub}</h3>
                   <p className="text-xs font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
                     <Clock size={12} /> Местное время: {w.localTime}
                   </p>
                 </div>
-
-                {/* Прогноз на завтра (Компактно) */}
                 <div className="mt-4 pt-3 border-t border-black/5 flex items-center justify-between z-10">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Завтра</span>
                   <div className="flex items-center gap-2 text-right">
@@ -298,8 +283,6 @@ export default function AnalyticsPage() {
                     <span className="text-[10px] font-semibold text-slate-500 capitalize">{w.tomorrowCondition}</span>
                   </div>
                 </div>
-
-                {/* Фоновая иконка */}
                 <div className="absolute -right-4 -bottom-4 opacity-[0.07] group-hover:scale-110 transition-transform duration-500 pointer-events-none">
                   <Plane size={100} />
                 </div>
@@ -310,9 +293,6 @@ export default function AnalyticsPage() {
 
         {/* 2. РАСХОДЫ И ПАРТНЕРЫ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* Инфографика расходов + Разбивка по партнерам */}
-          {/* Инфографика расходов + Разбивка по партнерам */}
           <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
@@ -323,8 +303,6 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* ── КРУГЛЫЙ ГРАФИК (RECHARTS) ── */}
-            {/* ── КРУГЛЫЙ ГРАФИК (ИДЕАЛЬНАЯ ВЕРСТКА ДЛЯ NEXT.JS) ── */}
             <div className="w-full flex justify-center items-center min-h-[250px] mb-4">
               {partnerExpenses.length === 0 ? (
                 <div className="w-full flex items-center justify-center text-slate-400 font-medium bg-slate-50 rounded-2xl min-h-[250px]">
@@ -356,23 +334,16 @@ export default function AnalyticsPage() {
               )}
             </div>
 
-            {/* ── ЛЕГЕНДА (ДОЛЯ ПАРТНЕРОВ) ── */}
             <div className="mt-auto space-y-3 pt-4 border-t border-slate-100">
               {partnerExpenses.map((p, i) => (
                 <div key={i} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div 
-                      className="w-3 h-3 rounded-full flex-shrink-0" 
-                      style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                    ></div>
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
                     <span className="font-bold text-slate-700 truncate text-fix">{p.name}</span>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <span className="font-black text-slate-900 text-fix">{p.sum.toFixed(0)} ₾</span>
-                    <span 
-                      className="text-xs font-bold w-8 text-right" 
-                      style={{ color: COLORS[i % COLORS.length] }}
-                    >
+                    <span className="text-xs font-bold w-8 text-right" style={{ color: COLORS[i % COLORS.length] }}>
                       {p.percent}%
                     </span>
                   </div>
@@ -381,7 +352,6 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Службы доставки */}
           <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
             <div className="flex items-center gap-3 mb-8">
               <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
@@ -423,7 +393,8 @@ export default function AnalyticsPage() {
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">
-            {[ownerName, ...partners.filter(p => p.isActive).map(p => p.name)].map((name, idx) => {
+            {partners.map((partner, idx) => {
+              const name = partner.name;
               const stats = getPartnerStats(name);
               
               const isPriceOver = stats.sum >= 300;
@@ -432,10 +403,10 @@ export default function AnalyticsPage() {
               
               const pricePct = Math.min((stats.sum / 300) * 100, 100);
               const weightPct = Math.min((stats.weight / 30) * 100, 100);
-              const isOwner = idx === 0;
+              const isOwner = partner.id === 'owner' || name === ownerName || idx === 0;
               
               return (
-                <div key={name} className={`p-6 rounded-2xl border transition-all duration-300 flex flex-col justify-between ${hasAlert ? 'bg-rose-50 border-rose-200 shadow-sm' : isOwner ? 'bg-indigo-50/30 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
+                <div key={partner.id || name} className={`p-6 rounded-2xl border transition-all duration-300 flex flex-col justify-between ${hasAlert ? 'bg-rose-50 border-rose-200 shadow-sm' : isOwner ? 'bg-indigo-50/30 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
                   
                   {/* Шапка карточки партнера */}
                   <div className="flex justify-between items-start mb-6">

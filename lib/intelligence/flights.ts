@@ -1,28 +1,62 @@
-// lib/intelligence/flights.ts
+import { prisma } from '@/lib/prisma';
 
-export interface FlightReport {
-  status: 'ON_TIME' | 'DELAYED' | 'CANCELLED';
-  delayDays: number;
-  intelligenceMessage: string | null;
-}
+// Базовая загруженность хабов (0-100)
+// В будущем сюда можно подключить AviationStack API
+const HUB_CONGESTION: Record<string, number> = {
+  'Франкфурт': 40, // Крупный перевалочный пункт, частые задержки
+  'Шэньчжэнь': 35, // Высокий трафик
+  'Стамбул': 25,
+  'Нью-Йорк': 30,
+};
 
-/**
- * Flight Intelligence Engine
- * Анализирует статус карго-рейсов и предсказывает изменения в Arrival Batches.
- */
-export async function analyzeFlightStatus(carrier: string): Promise<FlightReport> {
-  // В будущем здесь будет интеграция с FlightRadar API / AviationStack API
-  
-  // Симуляция логистических перегрузок на конкретных линиях
-  const isOverloaded = Math.random() > 0.75; // 25% шанс перегрузки хаба
+export async function checkFlightDelays() {
+  console.log('✈️ Запуск анализатора авиарейсов...');
 
-  if (carrier.toLowerCase() === 'georgian post' && isOverloaded) {
-    return { status: 'DELAYED', delayDays: 3, intelligenceMessage: 'Критическая перегрузка сортировочного центра.' };
+  // Берем все посылки, которые еще не доставлены и привязаны к хабу
+  const activeParcels = await prisma.parcel.findMany({
+    where: {
+      status: { in: ['Ожидается', 'В пути', 'На таможне'] },
+      logisticsHub: { not: null }
+    }
+  });
+
+  for (const parcel of activeParcels) {
+    const hub = parcel.logisticsHub!;
+    const baseRisk = HUB_CONGESTION[hub] || 15;
+    
+    // Если посылка уже имеет высокий погодный риск, рейс почти гарантированно задержится
+    const weatherImpact = parcel.hubWeatherRisk > 60 ? 40 : 0;
+    
+    // Добавляем элемент случайности (от -10 до +20) для симуляции реального расписания
+    const randomFactor = Math.floor(Math.random() * 30) - 10;
+    
+    let flightRisk = baseRisk + weatherImpact + randomFactor;
+    flightRisk = Math.max(0, Math.min(flightRisk, 100)); // Держим в пределах 0-100
+
+    // Обновляем риск задержки рейса в БД
+    await prisma.parcel.update({
+      where: { id: parcel.id },
+      data: { flightDelayRisk: flightRisk }
+    });
+
+    // Если риск стал критическим, создаем системный Alert
+    if (flightRisk >= 75) {
+      const existingAlert = await prisma.alert.findFirst({
+        where: { userId: parcel.userId, relatedHub: hub, type: 'delay', isResolved: false }
+      });
+
+      if (!existingAlert) {
+        await prisma.alert.create({
+          data: {
+            type: 'delay',
+            message: `Критический риск задержки рейса из хаба ${hub}. Посылка "${parcel.name}" может опоздать.`,
+            severity: 'CRITICAL',
+            relatedHub: hub,
+            userId: parcel.userId
+          }
+        });
+      }
+    }
   }
-
-  if (carrier.toLowerCase().includes('camex') && isOverloaded) {
-    return { status: 'DELAYED', delayDays: 1, intelligenceMessage: 'Задержка грузового борта из-за технического обслуживания.' };
-  }
-
-  return { status: 'ON_TIME', delayDays: 0, intelligenceMessage: null };
+  console.log(`✅ Обновлены риски рейсов для ${activeParcels.length} посылок.`);
 }

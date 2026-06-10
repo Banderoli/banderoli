@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { 
   User, Users, Smartphone, Trash2, Check, Loader2, Plus, 
-  ShieldCheck, Phone, Send, CreditCard, Mail, Edit2, Save, XCircle, Truck // <-- Добавлен Truck
+  ShieldCheck, Phone, Send, CreditCard, Mail, Edit2, Save, Truck, Store 
 } from 'lucide-react'
 
 // ── СТРОГАЯ ТИПИЗАЦИЯ ─────────────────────────────────────────
@@ -20,11 +20,15 @@ interface Partner {
   phone: string | null;
   email: string | null;
   documentId: string | null;
-  isActive: boolean; 
+  isActive?: boolean; 
 }
 
-// 🔥 НОВОЕ: Тип для перевозчика
 interface Carrier {
+  id: string;
+  name: string;
+}
+
+interface Shop {
   id: string;
   name: string;
 }
@@ -36,26 +40,25 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function ProfilePage() {
-  // Состояние основного получателя
   const [owner, setOwner] = useState<OwnerProfile>({ name: '', phone: '', telegram: '', documentId: '' })
   
-  // Состояние дополнительных получателей
   const [partners, setPartners] = useState<Partner[]>([])
   const [newPartner, setNewPartner] = useState({ name: '', phone: '', email: '', documentId: '' })
   const [editingPartner, setEditingPartner] = useState<Partner | null>(null)
   
-  // 🔥 НОВОЕ: Состояние перевозчиков
   const [carriers, setCarriers] = useState<Carrier[]>([])
   const [newCarrierName, setNewCarrierName] = useState('')
   const [isAddingCarrier, setIsAddingCarrier] = useState(false)
 
-  // Состояния UI
+  const [shops, setShops] = useState<Shop[]>([])
+  const [newShopName, setNewShopName] = useState('')
+  const [isAddingShop, setIsAddingShop] = useState(false)
+
   const [loading, setLoading] = useState(true)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [isAdding, setIsAdding] = useState(false)
   const [processingId, setProcessingId] = useState<string | null>(null)
 
-  // Состояния PWA
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [isInstallable, setIsInstallable] = useState(false)
 
@@ -75,26 +78,42 @@ export default function ProfilePage() {
 
   const fetchData = async () => {
     try {
-      // 🔥 Загружаем и партнеров, и перевозчиков параллельно
-      const [resPartners, resCarriers] = await Promise.all([
-        fetch('/api/partners'),
-        fetch('/api/carriers').catch(() => null) 
+      const t = Date.now(); 
+      
+      const [resPartners, resCarriers, resShops] = await Promise.all([
+        fetch(`/api/partners?t=${t}`),
+        fetch(`/api/carriers?t=${t}`).catch(() => null),
+        fetch(`/api/shops?t=${t}`).catch(() => null) 
       ])
 
       if (resPartners.ok) {
         const data = await resPartners.json()
+        const currentOwnerName = data.ownerName || '';
+
         setOwner({
-          name: data.ownerName || '',
+          name: currentOwnerName,
           phone: data.ownerPhone || '',
           telegram: data.ownerTelegram || '',
           documentId: data.ownerDocumentId || ''
         })
-        setPartners(data.partners || [])
+
+        const filteredPartners = (data.partners || []).filter((p: Partner) => {
+          if (p.id === 'owner') return false; 
+          if (currentOwnerName && p.name === currentOwnerName) return false; 
+          return true;
+        });
+
+        setPartners(filteredPartners)
       }
 
       if (resCarriers && resCarriers.ok) {
         const cData = await resCarriers.json()
         setCarriers(cData.carriers || [])
+      }
+
+      if (resShops && resShops.ok) {
+        const sData = await resShops.json()
+        setShops(sData.shops || [])
       }
 
     } catch (error) {
@@ -109,7 +128,7 @@ export default function ProfilePage() {
     e.preventDefault()
     setSaveStatus('saving')
     try {
-      await fetch('/api/partners', { 
+      const res = await fetch('/api/partners', { 
         method: 'PUT', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ 
@@ -119,10 +138,15 @@ export default function ProfilePage() {
           ownerDocumentId: owner.documentId
         }) 
       })
+      
+      if (!res.ok) throw new Error('Ошибка при сохранении профиля')
+      await fetchData()
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 3000)
-    } catch (error) {
+    } catch (error: any) {
+      console.error(error)
       setSaveStatus('idle')
+      alert(error.message || 'Не удалось сохранить данные профиля')
     }
   }
 
@@ -130,16 +154,24 @@ export default function ProfilePage() {
   const handleAddPartner = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newPartner.name.trim()) return
-    
     setIsAdding(true)
     try {
-      await fetch('/api/partners', { 
+      const res = await fetch('/api/partners', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify(newPartner) 
       })
+      
+      // 🔥 ИСПРАВЛЕНИЕ: Блокируем сброс формы, если сервер выдал ошибку
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || errData.message || 'Ошибка сервера при добавлении');
+      }
+
       setNewPartner({ name: '', phone: '', email: '', documentId: '' })
       await fetchData()
+    } catch (error: any) {
+      alert(`Не удалось добавить получателя: ${error.message}`);
     } finally {
       setIsAdding(false)
     }
@@ -150,13 +182,18 @@ export default function ProfilePage() {
     if (!editingPartner) return
     setProcessingId(editingPartner.id)
     try {
-      await fetch(`/api/partners/${editingPartner.id}`, { 
+      const res = await fetch(`/api/partners/${editingPartner.id}`, { 
         method: 'PATCH', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify(editingPartner) 
       })
+      
+      if (!res.ok) throw new Error('Не удалось обновить данные получателя')
+      
       setEditingPartner(null)
       await fetchData()
+    } catch (error: any) {
+      alert(error.message)
     } finally {
       setProcessingId(null)
     }
@@ -166,27 +203,34 @@ export default function ProfilePage() {
     if (!window.confirm('Удалить получателя? Это действие необратимо.')) return
     setProcessingId(id)
     try {
-      await fetch(`/api/partners/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/partners/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Не удалось удалить получателя')
       setPartners(prev => prev.filter(p => p.id !== id))
+    } catch (error: any) {
+      alert(error.message)
     } finally {
       setProcessingId(null)
     }
   }
 
-  // ── 🔥 ОБРАБОТЧИКИ (ПЕРЕВОЗЧИКИ) 🔥 ──────────────────────────
+  // ── ОБРАБОТЧИКИ (ПЕРЕВОЗЧИКИ) ──────────────────────────
   const handleAddCarrier = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newCarrierName.trim()) return
-    
     setIsAddingCarrier(true)
     try {
-      await fetch('/api/carriers', { 
+      const res = await fetch('/api/carriers', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ name: newCarrierName.trim() }) 
       })
+      
+      if (!res.ok) throw new Error('Не удалось добавить компанию')
+      
       setNewCarrierName('')
       await fetchData()
+    } catch (error: any) {
+      alert(error.message)
     } finally {
       setIsAddingCarrier(false)
     }
@@ -195,10 +239,45 @@ export default function ProfilePage() {
   const handleDeleteCarrier = async (id: string) => {
     if (!window.confirm('Удалить эту транспортную компанию?')) return
     try {
-      await fetch(`/api/carriers/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/carriers/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Ошибка удаления')
       setCarriers(prev => prev.filter(c => c.id !== id))
-    } catch (err) {
-      console.error(err)
+    } catch (err: any) {
+      alert(err.message)
+    }
+  }
+
+  // ── ОБРАБОТЧИКИ (МАГАЗИНЫ) ──────────────────────────
+  const handleAddShop = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newShopName.trim()) return
+    setIsAddingShop(true)
+    try {
+      const res = await fetch('/api/shops', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ name: newShopName.trim() }) 
+      })
+      
+      if (!res.ok) throw new Error('Не удалось добавить магазин')
+      
+      setNewShopName('')
+      await fetchData()
+    } catch (error: any) {
+      alert(error.message)
+    } finally {
+      setIsAddingShop(false)
+    }
+  }
+
+  const handleDeleteShop = async (id: string) => {
+    if (!window.confirm('Удалить этот магазин из списка?')) return
+    try {
+      const res = await fetch(`/api/shops/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Ошибка удаления')
+      setShops(prev => prev.filter(s => s.id !== id))
+    } catch (err: any) { 
+      alert(err.message) 
     }
   }
 
@@ -369,7 +448,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* 3. 🔥 НОВОЕ: ПЕРЕВОЗЧИКИ (ФОРВАРДЕРЫ) 🔥 */}
+        {/* 3. ПЕРЕВОЗЧИКИ (ФОРВАРДЕРЫ) */}
         <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2.5 bg-orange-50 text-orange-500 rounded-xl"><Truck size={24} /></div>
@@ -413,7 +492,51 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* 4. PWA */}
+        {/* 4. МАГАЗИНЫ */}
+        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl"><Store size={24} /></div>
+            <div>
+              <h2 className="text-xl font-extrabold text-slate-900 text-fix">Магазины</h2>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">Площадки покупок</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-500 font-medium mb-6 leading-relaxed">
+            Добавьте ваши любимые интернет-магазины (Amazon, ASOS, Trendyol), чтобы быстро выбирать их из списка при добавлении груза.
+          </p>
+
+          <form onSubmit={handleAddShop} className="flex flex-col sm:flex-row gap-3 mb-6">
+            <input 
+              required 
+              className={inputClass} 
+              placeholder="Название магазина (например: Amazon)" 
+              value={newShopName} 
+              onChange={e => setNewShopName(e.target.value)} 
+            />
+            <button type="submit" disabled={isAddingShop} className="flex items-center justify-center gap-2 bg-slate-900 text-white px-6 py-3.5 rounded-xl font-black hover:bg-slate-800 transition-colors disabled:opacity-70 shadow-sm sm:w-auto w-full">
+              {isAddingShop ? <Loader2 size={18} className="animate-spin" /> : <><Plus size={18} /> Добавить</>}
+            </button>
+          </form>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {shops.length === 0 ? (
+              <div className="col-span-full text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <p className="text-sm font-bold text-slate-400">Нет добавленных магазинов.</p>
+              </div>
+            ) : (
+              shops.map(s => (
+                <div key={s.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-teal-200 transition-colors">
+                  <span className="font-extrabold text-slate-800 text-fix">{s.name}</span>
+                  <button type="button" onClick={() => handleDeleteShop(s.id)} className="text-slate-300 hover:text-rose-500 transition-colors" title="Удалить">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* 5. PWA */}
         {isInstallable && (
           <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-8 rounded-3xl shadow-lg text-white text-center relative overflow-hidden flex flex-col items-center">
             <div className="relative z-10 flex flex-col items-center space-y-3">

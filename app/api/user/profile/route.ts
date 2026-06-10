@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import jwt from 'jsonwebtoken'
+import { jwtVerify } from 'jose' // 🔥 ЗАМЕНА jsonwebtoken НА jose (требование Next.js)
 import bcrypt from 'bcryptjs'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'parcelge-secret-key-change-in-production'
+// Конвертируем секрет для jose
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'parcelge-secret-key-change-in-production'
+)
 
 // ПОЛУЧЕНИЕ ДАННЫХ ПРОФИЛЯ
 export async function GET(req: NextRequest) {
@@ -11,15 +14,17 @@ export async function GET(req: NextRequest) {
     const token = req.cookies.get('token')?.value
     if (!token) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
     
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string }
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } })
-    
+    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const userId = payload.userId as string
+
+    const user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
 
     return NextResponse.json({
       name: user.name, 
       email: user.email, 
       phone: user.phone, 
+      telegram: (user as any).telegram || '', // страхуем, если поля нет в схеме
       idDocument: user.documentId
     })
   } catch (error) {
@@ -33,14 +38,24 @@ export async function PUT(req: NextRequest) {
     const token = req.cookies.get('token')?.value
     if (!token) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
     
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string }
-    const body = await req.json()
-    const { name, phone, idDocument, oldPassword, newPassword } = body
+    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const userId = payload.userId as string
 
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } })
+    const body = await req.json()
+    // Принимаем telegram из фронтенда
+    const { name, phone, telegram, idDocument, oldPassword, newPassword } = body
+
+    const user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 })
 
-    const updateData: any = { name, phone, idDocument }
+    // Маппим idDocument на правильное поле базы (documentId)
+    const updateData: any = { 
+      name, 
+      phone, 
+      documentId: idDocument 
+    }
+    
+    if (telegram !== undefined) updateData.telegram = telegram;
 
     // Безопасная смена пароля
     if (oldPassword && newPassword) {
@@ -52,12 +67,13 @@ export async function PUT(req: NextRequest) {
     }
 
     await prisma.user.update({
-      where: { id: decoded.userId },
+      where: { id: userId },
       data: updateData
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    console.error('Profile PUT Error:', error)
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
   }
 }
@@ -68,10 +84,11 @@ export async function DELETE(req: NextRequest) {
     const token = req.cookies.get('token')?.value;
     if (!token) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const userId = payload.userId as string;
 
     await prisma.user.delete({ 
-      where: { id: decoded.userId } 
+      where: { id: userId } 
     });
 
     const response = NextResponse.json({ success: true, message: 'Аккаунт удален' });

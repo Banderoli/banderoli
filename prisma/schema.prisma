@@ -5,26 +5,31 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Если у тебя NeonDB/Supabase и требуется directUrl, раскомментируй строку ниже:
+  // directUrl = env("DIRECT_URL")
 }
 
 // ── Главный аккаунт пользователя (Заменяет OwnerProfile) ──
 model User {
-  id         String    @id @default(cuid())
-  email      String    @unique
-  password   String    // Хэш пароля для авторизации
-  name       String    @default("Владелец")
-  phone      String?
-  telegramChatId String?
-  documentId String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  email            String    @unique
+  password         String    // Хэш пароля для авторизации
+  name             String    @default("Владелец")
+  role             String    @default("user") // Нужно для админ-доступа в будущем
+  phone            String?
+  telegramChatId   String?
+  documentId       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   resetToken       String?
   resetTokenExpiry DateTime?
-  carriers         Carrier[]
+  shops            Shop[]
 
-  // Связи: у одного юзера может быть много партнеров и много посылок
-  partners   Partner[]
-  parcels    Parcel[]
+  // Связи: у одного юзера может быть много партнеров, посылок, перевозчиков и алертов
+  carriers         Carrier[]
+  partners         Partner[]
+  parcels          Parcel[]
+  alerts           Alert[]   // ✅ Связь с алертами (исправлено)
 }
 
 // ── Дополнительные получатели (семья/друзья) ──
@@ -56,6 +61,11 @@ model Parcel {
   carrier          String?   // Перевозчик (USA2GEORGIA, Camex)
   status           String    @default("Ожидается")
   
+  // Логистика (НЕОБХОДИМО ДЛЯ ДВИЖКА РИСКОВ)
+  logisticsHub     String?   // Франкфурт, Нью-Йорк и т.д.
+  estimatedFlight  String?   // Номер или дата рейса
+  batchId          String?   // Идентификатор партии для отслеживания коллизий
+
   // Даты
   purchaseDate     DateTime?
   expectedDelivery DateTime?
@@ -69,7 +79,7 @@ model Parcel {
   // Связь с получателем (если null, то получатель - сам Владелец)
   partnerId        String?
   partner          Partner?  @relation(fields: [partnerId], references: [id], onDelete: SetNull)
-  recipientName    String?    // Денормализация для быстрого доступа
+  recipientName    String?   // Денормализация для быстрого доступа
   
   // Дополнительно
   comment          String?
@@ -78,23 +88,42 @@ model Parcel {
   hubWeatherRisk   Int       @default(0)
   flightDelayRisk  Int       @default(0)
   customsRiskScore Int       @default(0)
+  collisionRisk    Int       @default(0) // Вероятность встречи на таможне
 
   // Поля для дашборда
   deliveryScheduleStatus String? @default("unknown")
   scheduleDeltaDays      Int?    @default(0)
+
+  trackingEvents TrackingEvent[]
 }
 
+// ── История трекинга ─────────────────────────────────────────
+model TrackingEvent {
+  id        String   @id @default(uuid())
+  parcelId  String
+  parcel    Parcel   @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+  status    String
+  location  String?
+  message   String?
+  timestamp DateTime @default(now())
+}
+
+// ── Системные алерты (Погода, задержки) ──
 model Alert {
   id         String   @id @default(uuid())
   type       String   // 'customs', 'weather', 'delay'
   message    String
   isResolved Boolean  @default(false)
   createdAt  DateTime @default(now())
-  severity    String?   
-  relatedHub  String?   
+  severity   String?  
+  relatedHub String?  
 
+  // ✅ ДОБАВЬ ЭТИ ДВЕ СТРОЧКИ: обратная связь с User
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
+// ── Перевозчик ──
 model Carrier {
   id        String   @id @default(uuid())
   name      String
@@ -103,4 +132,38 @@ model Carrier {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ── Системные правила (Нужны для гибкой настройки лимитов) ──
+model CustomsRule {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+}
+
+model FlightRule {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model WeatherRule {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model Shop {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }

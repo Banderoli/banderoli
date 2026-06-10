@@ -1,35 +1,59 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { checkCarrierDelays } from '@/lib/monitor';
-import { checkWeatherAlerts } from '@/lib/weather';
+import { checkFlightDelays } from '@/lib/intelligence/flights';
+// Предполагаем, что файл risk-engine у тебя сохранен из ответа Claude
+import { calculateRiskScore } from '@/lib/intelligence/risk-engine'; 
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: Request) {
+  // Базовая защита крон-задачи (в продакшене добавь CRON_SECRET в .env)
+  const authHeader = req.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    // 1. Очищаем старые неразрешенные автоматические оповещения, чтобы избежать накопления дубликатов
-    await prisma.alert.deleteMany({
-      where: { isResolved: false }
-    });
+    console.log('🔄 Запуск глобального сканирования логистики...');
 
-    // 2. Выполняем автоматический анализ погоды во всех 4-х транзитных хабах
-    await checkWeatherAlerts();
+    // 1. Очищаем старые решенные алерты, чтобы не забивать базу
+    await prisma.alert.deleteMany({ where: { isResolved: true } });
 
-    // 3. Выгружаем все динамически добавленные пользователями почтовые службы
-    const carriers = await prisma.carrier.findMany({
-      where: {
-        NOT: { website: null }
-      }
-    });
+    // 2. Обновляем авиарейсы
+    await checkFlightDelays();
 
-    // 4. Запускаем парсер сайтов для каждой пользовательской интеграции
-    for (const carrier of carriers) {
-      if (carrier.website && carrier.website.startsWith('http')) {
-        await checkCarrierDelays(carrier.name, carrier.website);
+    // 3. Пересчитываем таможенные риски (Collision Risk) для ВСЕХ пользователей
+    const allUsers = await prisma.user.findMany({ select: { id: true } });
+    let updatedCount = 0;
+
+    for (const user of allUsers) {
+      const userParcels = await prisma.parcel.findMany({
+        where: { userId: user.id, status: { notIn: ['Доставлено', 'Утеряно', 'В архиве'] } }
+      });
+
+      for (const parcel of userParcels) {
+        // Пропускаем через risk-engine (если он у тебя установлен)
+        const risk = calculateRiskScore(parcel as any, userParcels as any[]);
+        
+        await prisma.parcel.update({
+          where: { id: parcel.id },
+          data: { 
+            customsRiskScore: risk.score, 
+            collisionRisk: risk.collisionProbability 
+          }
+        });
+        updatedCount++;
       }
     }
 
-    return NextResponse.json({ success: true, message: 'Автоматический мониторинг хабов и служб успешно завершен.' });
+    return NextResponse.json({
+      success: true,
+      message: `Cron завершен: Рейсы проверены, ${updatedCount} посылок пересчитано на коллизии.`
+    });
+
   } catch (error) {
-    console.error('[Критическая ошибка Cron]:', error);
-    return NextResponse.json({ error: 'Внутренняя ошибка сервера при выполнении фонового мониторинга' }, { status: 500 });
+    console.error('🚨 Ошибка в Cron:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

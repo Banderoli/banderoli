@@ -1,103 +1,105 @@
-// app/api/parcels/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
-import { calculateParcelRiskPercentage } from '@/lib/intelligence/risk-engine';
-import { sendTelegramAlert } from '@/lib/telegram';
+import { calculateRiskScore } from '@/lib/intelligence/risk-engine';
+// Убрали старый нерабочий импорт Telegram, чтобы не ронять сборку
 
-async function getUserId(): Promise<string | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('token')?.value;
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'banderoli-fallback-change-in-env'
+);
+
+async function getUserId(req: NextRequest): Promise<string | null> {
+  const token = req.cookies.get('token')?.value;
   if (!token) return null;
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'parcelge-secret-key');
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, JWT_SECRET);
     return payload.userId as string;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-// ── GET: Отдаем посылки УЖЕ С РАССЧИТАННЫМ РИСКОМ ──
+// ── GET: список всех посылок ───────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
-    const userId = await getUserId();
-    if (!userId) return NextResponse.json({ message: "Не авторизован" }, { status: 401 });
+    const userId = await getUserId(req);
+    if (!userId) return NextResponse.json({ message: 'Не авторизован' }, { status: 401 });
 
     const parcels = await prisma.parcel.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      include: { partner: true } // Обязательно подтягиваем партнера
     });
 
-    // Рассчитываем риск для КАЖДОЙ посылки "на лету"
-    const enrichedParcels = parcels.map((parcel, _, all) => {
-      const riskScore = calculateParcelRiskPercentage(parcel, all);
-      return { ...parcel, riskScore }; // Добавляем поле riskScore в ответ
+    // Обогащаем посылки новыми рисками
+    const enriched = parcels.map((p, _, all) => {
+      // Страховка: если recipientName пустой, берем из партнера
+      const parcelWithRecipient = { 
+        ...p, 
+        recipientName: p.recipientName || p.partner?.name || 'Владелец' 
+      };
+      
+      const risk = calculateRiskScore(parcelWithRecipient, all.map(a => ({
+        ...a, recipientName: a.recipientName || a.partner?.name || 'Владелец'
+      })));
+
+      return { 
+        ...parcelWithRecipient, 
+        riskScore: risk.score, 
+        riskLevel: risk.level, 
+        collisionProbability: risk.collisionProbability, 
+        riskFactors: risk.factors 
+      };
     });
 
-    return NextResponse.json({ parcels: enrichedParcels });
+    return NextResponse.json({ parcels: enriched });
   } catch (error) {
-    return NextResponse.json({ message: "Ошибка сервера" }, { status: 500 });
+    console.error('GET /api/parcels:', error);
+    return NextResponse.json({ message: 'Ошибка сервера' }, { status: 500 });
   }
 }
 
-// ── POST: Создаем посылку и ПРОВЕРЯЕМ РИСК для TELEGRAM ──
+// ── POST: создание новой посылки ──────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const userId = await getUserId();
-    if (!userId) return NextResponse.json({ message: "Не авторизован" }, { status: 401 });
+    const userId = await getUserId(req);
+    if (!userId) return NextResponse.json({ message: 'Не авторизован' }, { status: 401 });
 
     const body = await req.json();
-    if (!body.trackCode || !body.name || body.value === undefined) {
-      return NextResponse.json({ message: "Не заполнены обязательные поля" }, { status: 400 });
-    }
 
-    let partnerId = null;
-    // Сначала пытаемся взять имя из профиля пользователя
-    const owner = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
-    let recipientName = owner?.name || "Владелец";
-    if (body.partner && body.partner.trim() !== '') {
+    let partnerId: string | null = null;
+    let recipientName = 'Владелец';
+
+    // Умная привязка партнера
+    if (body.partner) {
       const partner = await prisma.partner.findFirst({
-        where: { userId, name: { equals: body.partner.trim(), mode: 'insensitive' } }
+        where: { userId, name: body.partner }
       });
-      if (partner) { partnerId = partner.id; recipientName = partner.name; } 
-      else recipientName = body.partner;
+      if (partner) {
+        partnerId = partner.id;
+        recipientName = partner.name;
+      } else {
+        recipientName = body.partner;
+      }
     }
 
-    // 1. Создаем посылку
     const newParcel = await prisma.parcel.create({
       data: {
-        userId, trackCode: body.trackCode, name: body.name, value: Number(body.value),
-        weight: body.weight ? Number(body.weight) : null, shop: body.shop || null,
-        carrier: body.carrier || null, partnerId, recipientName,
-        purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : null,
+        userId,
+        trackCode: body.trackCode,
+        name: body.name,
+        value: Number(body.value),
+        weight: body.weight ? Number(body.weight) : null,
+        shop: body.shop || null,
+        carrier: body.carrier || null,
+        logisticsHub: body.logisticsHub || null,
+        partnerId,
+        recipientName,
         expectedDelivery: body.expectedDelivery ? new Date(body.expectedDelivery) : null,
-        comment: body.comment || null, status: 'Ожидается'
       }
     });
 
-    // 2. Достаем все активные посылки, чтобы рассчитать риск новой с учетом старых
-    const allParcels = await prisma.parcel.findMany({ where: { userId } });
-    const currentRisk = calculateParcelRiskPercentage(newParcel, allParcels);
-
-    // 3. ОТПРАВЛЯЕМ TELEGRAM АЛЕРТ, если риск HIGH (>= 61)
-    if (currentRisk >= 61) {
-      const alertMsg = `
-🚨 <b>ВНИМАНИЕ: ВЫСОКИЙ РИСК ТАМОЖНИ!</b> 🚨
-<b>Риск совпадения:</b> ${currentRisk}%
-📦 <b>Посылка:</b> ${newParcel.name}
-💰 <b>Стоимость:</b> ${newParcel.value} GEL
-👤 <b>Получатель:</b> ${newParcel.recipientName}
-✈️ <b>Ожидается:</b> ${newParcel.expectedDelivery ? new Date(newParcel.expectedDelivery).toLocaleDateString('ru-RU') : 'Неизвестно'}
-
-<i>Рекомендуем изменить получателя, если возможно!</i>`;
-      await sendTelegramAlert(alertMsg);
-    }
-
-    return NextResponse.json({ success: true, parcel: { ...newParcel, riskScore: currentRisk } });
+    return NextResponse.json({ success: true, parcel: newParcel });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ message: "Ошибка сохранения" }, { status: 500 });
+    console.error('POST /api/parcels:', error);
+    return NextResponse.json({ message: 'Ошибка сохранения' }, { status: 500 });
   }
 }

@@ -17,8 +17,8 @@ export default function AddParcelPage() {
     name: '',
     value: '',
     weight: '',
-    shop: '',
-    carrier: '',
+    shop: '',    // Сюда будет сохраняться выбранный магазин
+    carrier: '', // Сюда будет сохраняться выбранный перевозчик
     partner: '', // Сюда будет сохраняться выбранный получатель
     purchaseDate: '',
     expectedDelivery: '',
@@ -30,19 +30,44 @@ export default function AddParcelPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
-  // 🔥 НОВОЕ: Состояние для хранения списка партнеров из Кабинета
+  // ── Состояния для динамических списков ─────────────────────────
   const [partnersList, setPartnersList] = useState<{id: string, name: string}[]>([])
+  const [carriersList, setCarriersList] = useState<{id: string, name: string}[]>([])
+  const [shopsList, setShopsList] = useState<{id: string, name: string}[]>([]) // 🔥 НОВОЕ: список магазинов
+  const [ownerFullName, setOwnerFullName] = useState('Основной получатель')
 
-  // 🔥 НОВОЕ: Загружаем список партнеров при монтировании компонента
+  // 🔥 ИСПРАВЛЕНО: Параллельная загрузка получателей, перевозчиков и магазинов
   useEffect(() => {
-    fetch('/api/partners')
-      .then(res => res.json())
-      .then(data => {
-        if (data.partners) {
-          setPartnersList(data.partners)
+    Promise.all([
+      fetch('/api/partners').then(res => res.json()).catch(() => ({})),
+      fetch('/api/carriers').then(res => res.json()).catch(() => ({})),
+      fetch('/api/shops').then(res => res.json()).catch(() => ({})) // 🔥 НОВОЕ: Запрос за магазинами
+    ]).then(([partnersData, carriersData, shopsData]) => {
+      
+      // 1. Обработка получателей
+      if (partnersData) {
+        const mainOwnerName = partnersData.ownerName || 'Основной получатель';
+        setOwnerFullName(mainOwnerName);
+
+        if (partnersData.partners) {
+          const filteredPartners = partnersData.partners.filter((p: any) => 
+            p.name !== mainOwnerName && p.id !== 'owner'
+          );
+          setPartnersList(filteredPartners);
         }
-      })
-      .catch(err => console.error('Ошибка загрузки списка получателей:', err))
+      }
+
+      // 2. Обработка перевозчиков
+      if (carriersData && carriersData.carriers) {
+        setCarriersList(carriersData.carriers);
+      }
+
+      // 3. 🔥 Обработка магазинов
+      if (shopsData && shopsData.shops) {
+        setShopsList(shopsData.shops);
+      }
+      
+    }).catch(err => console.error('Ошибка загрузки данных для формы:', err))
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -221,30 +246,42 @@ export default function AddParcelPage() {
             <div className="space-y-5">
               <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Логистика</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                
+                {/* 🔥 НОВОЕ: Выпадающий список магазинов 🔥 */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
                     <Store size={14} className="text-blue-500" /> Магазин
                   </label>
-                  <input 
-                    className={inputClassName} 
-                    placeholder="Amazon, ASOS..." 
+                  <select 
+                    className={selectClassName} 
                     value={formData.shop}
                     onChange={e => setFormData({...formData, shop: e.target.value})} 
-                  />
+                  >
+                    <option value="">Не выбран</option>
+                    {shopsList.map(s => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
                 </div>
+
+                {/* Выпадающий список перевозчиков */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
                     <Truck size={14} className="text-blue-500" /> Перевозчик
                   </label>
-                  <input 
-                    className={inputClassName} 
-                    placeholder="USA2GE, Camex..." 
+                  <select 
+                    className={selectClassName} 
                     value={formData.carrier}
                     onChange={e => setFormData({...formData, carrier: e.target.value})} 
-                  />
+                  >
+                    <option value="">Не выбран</option>
+                    {carriersList.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
                 
-                {/* 🔥 НОВОЕ: ВЫПАДАЮЩИЙ СПИСОК ВМЕСТО INPUT 🔥 */}
+                {/* Выпадающий список получателей */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 ml-1 flex items-center gap-1.5">
                     <User size={14} className="text-blue-500" /> Получатель
@@ -254,7 +291,7 @@ export default function AddParcelPage() {
                     value={formData.partner}
                     onChange={e => setFormData({...formData, partner: e.target.value})} 
                   >
-                    <option value="">Владелец аккаунта (Я)</option>
+                    <option value="">{ownerFullName} (Основной)</option>
                     {partnersList.map(p => (
                       <option key={p.id} value={p.name}>{p.name}</option>
                     ))}

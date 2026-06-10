@@ -9,7 +9,7 @@ import {
   Weight, Store, Truck, User, Tag, QrCode, CalendarClock,
   ChevronDown, ChevronUp, TrendingUp, Archive, Timer, CheckCircle2,
   AlertCircle, ArrowUpCircle, Activity, Edit2, XCircle, Trash2,
-  Banknote, Search // 🔥 ДОБАВЛЕНА ИКОНКА ПОИСКА
+  Banknote, Search
 } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════
@@ -91,7 +91,11 @@ const formatDateForInput = (isoString?: string) => {
 export default function DashboardPage() {
   const router = useRouter()
   const [parcels,    setParcels]    = useState<Parcel[]>([])
+  
+  // 🔥 НОВОЕ: Разделяем имя для шапки и полное имя для списков
   const [userName,   setUserName]   = useState('Пользователь')
+  const [ownerFullName, setOwnerFullName] = useState('Основной получатель')
+  
   const [loading,    setLoading]    = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   
@@ -101,8 +105,6 @@ export default function DashboardPage() {
   const [editForm, setEditForm] = useState<Partial<Parcel>>({})
 
   const [weather, setWeather] = useState<{ temp: string; condition: string; icon: WeatherIcon }>({ temp: '--', condition: 'Загрузка…', icon: 'unknown' })
-
-  // 🔥 НОВОЕ: Состояние для строки поиска
   const [searchQuery, setSearchQuery] = useState('')
 
   // ── Загрузка ─────────────────────────────────────────────
@@ -120,8 +122,18 @@ export default function DashboardPage() {
         
         if (rPr.ok) {
           const d = await rPr.json()
+          const currentFullName = d.ownerName || 'Основной получатель';
+          
           if (d.ownerName) setUserName(d.ownerName.split(' ')[0])
-          if (d.partners) setPartnersList(d.partners)
+          setOwnerFullName(currentFullName)
+          
+          if (d.partners) {
+            // 🔥 ИСКЛЮЧАЕМ Владельца из списка, чтобы не было дубликатов в Dropdown
+            const filteredPartners = d.partners.filter((p: any) => 
+              p.id !== 'owner' && p.name !== currentFullName
+            );
+            setPartnersList(filteredPartners)
+          }
         }
       } catch { setParcels(DEMO) } 
       finally { setLoading(false) }
@@ -240,36 +252,32 @@ export default function DashboardPage() {
   const delivered = useMemo(() => parcels.filter(p => p.status.toLowerCase() === 'доставлено'), [parcels])
   const inTransit = useMemo(() => active.filter(p => p.status.toLowerCase() === 'в пути'), [active])
 
-  // 🔥 НОВОЕ: Логика фильтрации поиска (Только для активных посылок)
+  // Фильтрация поиска (динамическая замена fallback на ownerFullName)
   const filteredActive = useMemo(() => {
     if (!searchQuery.trim()) return active;
     
     const query = searchQuery.toLowerCase().trim();
     
     return active.filter(p => {
-      // Ищем по названию товара
       const matchName = p.name.toLowerCase().includes(query);
-      // Ищем по трек-коду
       const matchTrack = p.trackCode.toLowerCase().includes(query);
-      // Ищем по имени получателя
-      const recipient = (p.recipientName || p.partner || userName || 'Владелец').toLowerCase();
+      const recipient = (p.recipientName || p.partner || ownerFullName).toLowerCase();
       const matchRecipient = recipient.includes(query);
-      // Ищем по дате
       const expectedDate = p.expectedDelivery ? new Date(p.expectedDelivery).toLocaleDateString('ru-RU') : '';
       const matchDate = expectedDate.includes(query);
 
       return matchName || matchTrack || matchRecipient || matchDate;
     });
-  }, [active, searchQuery, userName]);
+  }, [active, searchQuery, ownerFullName]);
 
   const avgRisk = active.length ? Math.round(active.reduce((s, p) => s + (p.riskScore ?? 0), 0) / active.length) : 0
 
-  // Логика таможни (Рассчитывается всегда по ВСЕМ активным, игнорируя поиск)
+  // Логика таможни (используем полное имя Основного получателя)
   const customsAlerts = useMemo(() => {
     const userStats: Record<string, { sum: number; weight: number; parcels: Parcel[] }> = {};
 
     active.forEach(p => {
-      const rName = p.recipientName || p.partner || userName || 'Владелец';
+      const rName = p.recipientName || p.partner || ownerFullName;
       if (!userStats[rName]) userStats[rName] = { sum: 0, weight: 0, parcels: [] };
       userStats[rName].sum += Number(p.value || 0);
       userStats[rName].weight += Number(p.weight || 0);
@@ -296,7 +304,7 @@ export default function DashboardPage() {
     });
 
     return flagged;
-  }, [active, userName]);
+  }, [active, ownerFullName]);
 
   const getStatusUI = (st: string) => {
     const s = st.toLowerCase()
@@ -403,7 +411,6 @@ export default function DashboardPage() {
             <div className="lg:col-span-2">
               <div className="bg-white/90 backdrop-blur-sm rounded-3xl border border-white shadow-sm overflow-hidden flex flex-col min-h-[400px]">
                 
-                {/* 🔥 НОВОЕ: Шапка со строкой поиска 🔥 */}
                 <div className="px-5 sm:px-7 py-5 border-b border-slate-100 flex flex-col gap-4 bg-slate-50/60 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <h2 className="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
@@ -439,7 +446,6 @@ export default function DashboardPage() {
                     <p className="text-sm">Все отправления доставлены или ещё не добавлены.</p>
                   </div>
                 ) : filteredActive.length === 0 ? (
-                  /* Пустое состояние при отсутствии результатов поиска */
                   <div className="p-16 flex flex-col items-center justify-center flex-1 text-center text-slate-400">
                     <div className="p-4 bg-slate-50 rounded-full mb-4"><Search size={32} className="text-slate-300"/></div>
                     <p className="font-bold text-slate-600 mb-1">Ничего не найдено</p>
@@ -448,7 +454,6 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100 flex-1 overflow-y-auto">
-                    {/* 🔥 ИСПОЛЬЗУЕМ filteredActive ВМЕСТО active 🔥 */}
                     {filteredActive.map(parcel => {
                       const stUI  = getStatusUI(parcel.status)
                       const sched = scheduleUI(parcel.deliveryScheduleStatus, parcel.scheduleDeltaDays)
@@ -496,7 +501,7 @@ export default function DashboardPage() {
                                   {([
                                     { icon: <Store size={13}/>, label: 'Магазин', val: parcel.shop || 'Не указан' },
                                     { icon: <Truck size={13}/>, label: 'Перевозчик', val: parcel.carrier || 'Не указан' },
-                                    { icon: <User size={13}/>, label: 'Получатель', val: parcel.recipientName || parcel.partner || 'Владелец' },
+                                    { icon: <User size={13}/>, label: 'Получатель', val: parcel.recipientName || parcel.partner || ownerFullName },
                                     { icon: <Tag size={13}/>, label: 'Цена товара', val: `${Number(parcel.value).toFixed(2)} ₾` },
                                     parcel.weight != null && { icon: <Weight size={13}/>, label: 'Вес посылки',  val: `${parcel.weight} кг` },
                                     { icon: <QrCode size={13}/>, label: 'Трек-код', val: parcel.trackCode, mono: true },
@@ -556,7 +561,7 @@ export default function DashboardPage() {
 
             <div className="space-y-4 fade-up-3 flex flex-col h-full">
               
-              {/* ── ТАМОЖЕННЫЙ ЛИМИТ (НОВАЯ ВЕРСИЯ С ТРЕК-КОДАМИ) ── */}
+              {/* ── ТАМОЖЕННЫЙ ЛИМИТ ── */}
               <div className={`bg-white/90 backdrop-blur-sm p-5 sm:p-6 rounded-3xl border shadow-sm transition-colors flex flex-col ${customsAlerts.length > 0 ? 'border-rose-200 bg-rose-50/20' : 'border-white'}`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
@@ -692,12 +697,13 @@ export default function DashboardPage() {
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">Получатель</label>
+                  {/* 🔥 ИСПРАВЛЕНО: Выпадающий список с ИМЕНЕМ основного получателя */}
                   <select 
-                    value={editForm.recipientName || ''} 
+                    value={(!editForm.recipientName || editForm.recipientName === ownerFullName || editForm.recipientName === 'Владелец') ? '' : editForm.recipientName} 
                     onChange={e => setEditForm({...editForm, recipientName: e.target.value})} 
                     className="w-full border rounded-xl px-3 py-2 mt-1 text-sm outline-none focus:border-indigo-500 bg-white cursor-pointer" 
                   >
-                    <option value="">Владелец аккаунта</option>
+                    <option value="">{ownerFullName} (Владелец)</option>
                     {partnersList.map(p => (
                       <option key={p.id} value={p.name}>{p.name}</option>
                     ))}
