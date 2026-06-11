@@ -85,13 +85,16 @@ export async function GET() {
       (smartList[0] as any).isRecommended = true;
     }
 
+   // ... кусок кода до этого места остается без изменений ...
+
     return NextResponse.json({
+      ownerId: user.id, // 🔥 ДОБАВЬ ЭТУ СТРОКУ
       ownerName: user.name,
       ownerEmail: user.email,
       ownerPhone: user.phone,
       ownerDocumentId: user.documentId,
       ownerTelegram: user.telegramChatId,
-      partners: smartList // Отдаем умный отсортированный список СО ВСЕМИ данными!
+      partners: smartList
     });
   } catch (error) {
     console.error('GET /api/partners:', error);

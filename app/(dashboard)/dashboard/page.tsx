@@ -111,6 +111,9 @@ export default function DashboardPage() {
   const [filterCarrier, setFilterCarrier] = useState('')
   const [filterShop, setFilterShop] = useState('')
 
+  const [ownerId, setOwnerId] = useState('')
+  const [isBotConnected, setIsBotConnected] = useState(false)
+
   // ── Загрузка ─────────────────────────────────────────────
   useEffect(() => {
     ;(async () => {
@@ -130,6 +133,8 @@ export default function DashboardPage() {
           
           if (d.ownerName) setUserName(d.ownerName.split(' ')[0])
           setOwnerFullName(currentFullName)
+          setOwnerId(d.ownerId || '') // 🔥 Добавлено
+          setIsBotConnected(!!d.ownerTelegram) // 🔥 Добавлено
           
           if (d.partners) {
             const filteredPartners = d.partners.filter((p: any) => 
@@ -735,9 +740,19 @@ export default function DashboardPage() {
                     <h3 className="font-extrabold text-base">Telegram-бот</h3>
                   </div>
                   <p className="text-indigo-100 text-xs mb-5 leading-relaxed font-medium">Мгновенные уведомления о статусах, таможенных рисках и задержках рейсов.</p>
-                  <button className="w-full bg-white text-indigo-700 hover:bg-indigo-50 py-3 rounded-2xl font-black text-sm transition-all shadow-sm hover:shadow-md">
-                    Подключить уведомления
-                  </button>
+                  
+                  <a 
+                    href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}?start=${ownerId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`w-full py-3 rounded-2xl font-black text-sm transition-all shadow-sm hover:shadow-md text-center block ${
+                      isBotConnected 
+                        ? 'bg-emerald-500 text-white hover:bg-emerald-600' 
+                        : 'bg-white text-indigo-700 hover:bg-indigo-50'
+                    }`}
+                  >
+                    {isBotConnected ? '✓ Бот подключен' : 'Подключить уведомления'}
+                  </a>
                 </div>
               </div>
 
