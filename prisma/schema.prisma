@@ -5,34 +5,35 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // Если у тебя NeonDB/Supabase и требуется directUrl, раскомментируй строку ниже:
-  // directUrl = env("DIRECT_URL")
+  // directUrl = env("DIRECT_URL") // Раскомментируй, если используешь NeonDB/Supabase в режиме пуллера
 }
 
-// ── Главный аккаунт пользователя (Заменяет OwnerProfile) ──
+// ── Главный аккаунт пользователя ─────────────────────────────
 model User {
   id               String    @id @default(cuid())
   email            String    @unique
-  password         String    // Хэш пароля для авторизации
+  password         String    // Хэш пароля
   name             String    @default("Владелец")
-  role             String    @default("user") // Нужно для админ-доступа в будущем
+  role             String    @default("user")
   phone            String?
   telegramChatId   String?
   documentId       String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  
   resetToken       String?
   resetTokenExpiry DateTime?
-  shops            Shop[]
 
-  // Связи: у одного юзера может быть много партнеров, посылок, перевозчиков и алертов
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Связи
+  shops            Shop[]
   carriers         Carrier[]
   partners         Partner[]
   parcels          Parcel[]
-  alerts           Alert[]   // ✅ Связь с алертами (исправлено)
+  alerts           Alert[]
 }
 
-// ── Дополнительные получатели (семья/друзья) ──
+// ── Дополнительные получатели (семья/друзья) ─────────────────
 model Partner {
   id         String   @id @default(uuid())
   name       String
@@ -40,108 +41,120 @@ model Partner {
   email      String?
   documentId String?
   isActive   Boolean  @default(true)
+  
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt @default(now()) // ✅ Добавлено для консистентности
 
-  // Связь с владельцем (К какому аккаунту принадлежит партнер)
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Связь: один партнер -> много посылок
   parcels    Parcel[]
 }
 
-// ── Отправления (Грузы) ──
-model Parcel {
-  id               String    @id @default(uuid())
-  trackCode        String    @unique
-  name             String
-  value            Float     // Стоимость в GEL
-  weight           Float?    // Вес в КГ
-  shop             String?   // Магазин (Amazon, ASOS и т.д.)
-  carrier          String?   // Перевозчик (USA2GEORGIA, Camex)
-  status           String    @default("Ожидается")
+// ── Магазины ──────────────────────────────────────────────────
+model Shop {
+  id         String   @id @default(cuid())
+  name       String
   
-  // Логистика (НЕОБХОДИМО ДЛЯ ДВИЖКА РИСКОВ)
-  logisticsHub     String?   // Франкфурт, Нью-Йорк и т.д.
-  estimatedFlight  String?   // Номер или дата рейса
-  batchId          String?   // Идентификатор партии для отслеживания коллизий
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt @default(now()) // ✅ Добавлено для консистентности
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── Перевозчики ───────────────────────────────────────────────
+model Carrier {
+  id         String   @id @default(uuid())
+  name       String
+  website    String?
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ── Отправления (Грузы) ───────────────────────────────────────
+model Parcel {
+  id                     String    @id @default(uuid())
+  trackCode              String    @unique
+  name                   String
+  value                  Float     // Стоимость в GEL
+  weight                 Float?    // Вес в КГ
+  shop                   String?   // Магазин
+  carrier                String?   // Перевозчик
+  status                 String    @default("Ожидается")
+  
+  // Логистика (Для движка рисков)
+  logisticsHub           String?   // Франкфурт, Нью-Йорк и т.д.
+  estimatedFlight        String?   // Номер или дата рейса
+  batchId                String?   // ID партии для отслеживания коллизий
 
   // Даты
-  purchaseDate     DateTime?
-  expectedDelivery DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  purchaseDate           DateTime?
+  expectedDelivery       DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
   
-  // Связь с владельцем (В чьем кабинете находится посылка)
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Связи
+  userId                 String
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Связь с получателем (если null, то получатель - сам Владелец)
-  partnerId        String?
-  partner          Partner?  @relation(fields: [partnerId], references: [id], onDelete: SetNull)
-  recipientName    String?   // Денормализация для быстрого доступа
+  partnerId              String?
+  partner                Partner?  @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  recipientName          String?   // Денормализация для быстрого доступа
   
-  // Дополнительно
-  comment          String?
+  comment                String?
   
   // Вычисляемые риски
-  hubWeatherRisk   Float?      @default(0)
-  flightDelayRisk  Float?      @default(0)
-  customsRiskScore Float?      @default(0)
-  collisionRisk    Float?      @default(0) // Вероятность встречи на таможне
+  hubWeatherRisk         Float?    @default(0)
+  flightDelayRisk        Float?    @default(0)
+  customsRiskScore       Float?    @default(0)
+  collisionRisk          Float?    @default(0) // Вероятность встречи на таможне
 
   // Поля для дашборда
-  deliveryScheduleStatus String? @default("unknown")
-  scheduleDeltaDays      Int?    @default(0)
+  deliveryScheduleStatus String?   @default("unknown")
+  scheduleDeltaDays      Int?      @default(0)
 
-  trackingEvents TrackingEvent[]
+  trackingEvents         TrackingEvent[]
 }
 
-// ── История трекинга ─────────────────────────────────────────
+// ── История трекинга ──────────────────────────────────────────
 model TrackingEvent {
-  id        String   @id @default(uuid())
-  parcelId  String
-  parcel    Parcel   @relation(fields: [parcelId], references: [id], onDelete: Cascade)
-  status    String
-  location  String?
-  message   String?
-  timestamp DateTime @default(now())
+  id         String   @id @default(uuid())
+  status     String
+  location   String?
+  message    String?
+  timestamp  DateTime @default(now())
+
+  parcelId   String
+  parcel     Parcel   @relation(fields: [parcelId], references: [id], onDelete: Cascade)
 }
 
-// ── Системные алерты (Погода, задержки) ──
+// ── Системные алерты (Погода, задержки) ───────────────────────
 model Alert {
   id         String   @id @default(uuid())
   type       String   // 'customs', 'weather', 'delay'
   message    String
   isResolved Boolean  @default(false)
-  createdAt  DateTime @default(now())
   severity   String?  
   relatedHub String?  
 
-  // ✅ ДОБАВЬ ЭТИ ДВЕ СТРОЧКИ: обратная связь с User
+  createdAt  DateTime @default(now())
+
   userId     String?
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
-// ── Перевозчик ──
-model Carrier {
-  id        String   @id @default(uuid())
-  name      String
-  website   String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// ── Системные правила (Нужны для гибкой настройки лимитов) ──
+// ── Системные правила (Настройки лимитов и рисков) ────────────
 model CustomsRule {
   id          String   @id @default(uuid())
   key         String   @unique
   value       String
   description String?
-  updatedAt   DateTime @updatedAt
   updatedBy   String?
+  updatedAt   DateTime @updatedAt
 }
 
 model FlightRule {
@@ -158,12 +171,4 @@ model WeatherRule {
   value       String
   description String?
   updatedAt   DateTime @updatedAt
-}
-
-model Shop {
-  id        String   @id @default(cuid())
-  name      String
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
 }

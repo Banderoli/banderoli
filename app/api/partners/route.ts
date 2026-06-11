@@ -8,6 +8,7 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'banderoli-fallback-change-in-env'
 );
 
+// Универсальная функция проверки авторизации
 async function getUserId(): Promise<string | null> {
   const store = await cookies();
   const token = store.get('token')?.value;
@@ -31,7 +32,7 @@ export async function GET() {
         partners: true,
         parcels: {
           where: { status: { notIn: ['Доставлено', 'Утеряно', 'В архиве'] } },
-          include: { partner: true } // ✅ ДОБАВЬ ЭТУ СТРОКУ, чтобы TS увидел партнера
+          include: { partner: true }
         }
       }
     });
@@ -54,12 +55,24 @@ export async function GET() {
       }
     });
 
-    // Формируем список с остатками лимита
+    // Формируем список с остатками лимита. 
+    // 🔥 ИСПРАВЛЕНИЕ: Теперь мы возвращаем ВСЕ поля (phone, email, documentId)
     const smartList = [
-      { id: 'owner', name: user.name, available: Math.max(0, PRICE_LIMIT - (stats[user.name] || 0)) },
+      { 
+        id: 'owner', 
+        name: user.name, 
+        phone: user.phone,
+        email: user.email,
+        documentId: user.documentId,
+        available: Math.max(0, PRICE_LIMIT - (stats[user.name] || 0)) 
+      },
       ...user.partners.map(p => ({
         id: p.id,
         name: p.name,
+        phone: p.phone,             // Раньше этого не было!
+        email: p.email,             // Раньше этого не было!
+        documentId: p.documentId,   // Раньше этого не было!
+        isActive: p.isActive,
         available: Math.max(0, PRICE_LIMIT - (stats[p.name] || 0))
       }))
     ];
@@ -78,7 +91,7 @@ export async function GET() {
       ownerPhone: user.phone,
       ownerDocumentId: user.documentId,
       ownerTelegram: user.telegramChatId,
-      partners: smartList // Отдаем умный отсортированный список!
+      partners: smartList // Отдаем умный отсортированный список СО ВСЕМИ данными!
     });
   } catch (error) {
     console.error('GET /api/partners:', error);
@@ -127,10 +140,10 @@ export async function PUT(req: NextRequest) {
     const updated = await prisma.user.update({
       where: { id: userId },
       data: {
-        name:          ownerName?.trim()       || undefined,
-        phone:         ownerPhone?.trim()      || null,
-        documentId:    ownerDocumentId?.trim() || null,
-        telegramChatId: ownerTelegram?.trim()  || null,
+        name:           ownerName?.trim()       || undefined,
+        phone:          ownerPhone?.trim()      || null,
+        documentId:     ownerDocumentId?.trim() || null,
+        telegramChatId: ownerTelegram?.trim()   || null,
       }
     });
 

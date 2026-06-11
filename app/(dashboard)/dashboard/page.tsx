@@ -9,7 +9,7 @@ import {
   Weight, Store, Truck, User, Tag, QrCode, CalendarClock,
   ChevronDown, ChevronUp, TrendingUp, Archive, Timer, CheckCircle2,
   AlertCircle, ArrowUpCircle, Activity, Edit2, XCircle, Trash2,
-  Banknote, Search
+  Banknote, Search, Filter
 } from 'lucide-react'
 
 // ═══════════════════════════════════════════════════════════
@@ -92,7 +92,6 @@ export default function DashboardPage() {
   const router = useRouter()
   const [parcels,    setParcels]    = useState<Parcel[]>([])
   
-  // 🔥 НОВОЕ: Разделяем имя для шапки и полное имя для списков
   const [userName,   setUserName]   = useState('Пользователь')
   const [ownerFullName, setOwnerFullName] = useState('Основной получатель')
   
@@ -105,7 +104,12 @@ export default function DashboardPage() {
   const [editForm, setEditForm] = useState<Partial<Parcel>>({})
 
   const [weather, setWeather] = useState<{ temp: string; condition: string; icon: WeatherIcon }>({ temp: '--', condition: 'Загрузка…', icon: 'unknown' })
+  
+  // 🔥 НОВОЕ: 4 независимых состояния для фильтрации
   const [searchQuery, setSearchQuery] = useState('')
+  const [filterRecipient, setFilterRecipient] = useState('')
+  const [filterCarrier, setFilterCarrier] = useState('')
+  const [filterShop, setFilterShop] = useState('')
 
   // ── Загрузка ─────────────────────────────────────────────
   useEffect(() => {
@@ -128,7 +132,6 @@ export default function DashboardPage() {
           setOwnerFullName(currentFullName)
           
           if (d.partners) {
-            // 🔥 ИСКЛЮЧАЕМ Владельца из списка, чтобы не было дубликатов в Dropdown
             const filteredPartners = d.partners.filter((p: any) => 
               p.id !== 'owner' && p.name !== currentFullName
             );
@@ -252,27 +255,69 @@ export default function DashboardPage() {
   const delivered = useMemo(() => parcels.filter(p => p.status.toLowerCase() === 'доставлено'), [parcels])
   const inTransit = useMemo(() => active.filter(p => p.status.toLowerCase() === 'в пути'), [active])
 
-  // Фильтрация поиска (динамическая замена fallback на ownerFullName)
-  const filteredActive = useMemo(() => {
-    if (!searchQuery.trim()) return active;
-    
-    const query = searchQuery.toLowerCase().trim();
-    
-    return active.filter(p => {
-      const matchName = p.name.toLowerCase().includes(query);
-      const matchTrack = p.trackCode.toLowerCase().includes(query);
-      const recipient = (p.recipientName || p.partner || ownerFullName).toLowerCase();
-      const matchRecipient = recipient.includes(query);
-      const expectedDate = p.expectedDelivery ? new Date(p.expectedDelivery).toLocaleDateString('ru-RU') : '';
-      const matchDate = expectedDate.includes(query);
+  // 🔥 НОВОЕ: Динамическое формирование списков для фильтров (только то, что реально есть в активных посылках)
+  const uniqueRecipients = useMemo(() => {
+    const set = new Set<string>();
+    active.forEach(p => set.add(p.recipientName || p.partner || ownerFullName));
+    return Array.from(set).sort();
+  }, [active, ownerFullName]);
 
-      return matchName || matchTrack || matchRecipient || matchDate;
+  const uniqueCarriers = useMemo(() => {
+    const set = new Set<string>();
+    active.forEach(p => { if (p.carrier) set.add(p.carrier) });
+    return Array.from(set).sort();
+  }, [active]);
+
+  const uniqueShops = useMemo(() => {
+    const set = new Set<string>();
+    active.forEach(p => { if (p.shop) set.add(p.shop) });
+    return Array.from(set).sort();
+  }, [active]);
+
+  // 🔥 НОВОЕ: Логика фильтрации
+  const filteredActive = useMemo(() => {
+    return active.filter(p => {
+      // 1. Текстовый поиск
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchName = p.name.toLowerCase().includes(q);
+        const matchTrack = p.trackCode.toLowerCase().includes(q);
+        const recipient = (p.recipientName || p.partner || ownerFullName).toLowerCase();
+        const matchRecipient = recipient.includes(q);
+        const matchDate = p.expectedDelivery ? new Date(p.expectedDelivery).toLocaleDateString('ru-RU').includes(q) : false;
+
+        if (!matchName && !matchTrack && !matchRecipient && !matchDate) return false;
+      }
+
+      // 2. Фильтр по получателю
+      if (filterRecipient && (p.recipientName || p.partner || ownerFullName) !== filterRecipient) {
+        return false;
+      }
+
+      // 3. Фильтр по перевозчику
+      if (filterCarrier && p.carrier !== filterCarrier) {
+        return false;
+      }
+
+      // 4. Фильтр по магазину
+      if (filterShop && p.shop !== filterShop) {
+        return false;
+      }
+
+      return true; // Если прошла все фильтры - показываем
     });
-  }, [active, searchQuery, ownerFullName]);
+  }, [active, searchQuery, filterRecipient, filterCarrier, filterShop, ownerFullName]);
+
+  // Функция полного сброса
+  const clearFilters = () => {
+    setSearchQuery('');
+    setFilterRecipient('');
+    setFilterCarrier('');
+    setFilterShop('');
+  }
 
   const avgRisk = active.length ? Math.round(active.reduce((s, p) => s + (p.riskScore ?? 0), 0) / active.length) : 0
 
-  // Логика таможни (используем полное имя Основного получателя)
   const customsAlerts = useMemo(() => {
     const userStats: Record<string, { sum: number; weight: number; parcels: Parcel[] }> = {};
 
@@ -422,20 +467,68 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                   
-                  <div className="relative group">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18}/>
-                    <input 
-                      type="text" 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Поиск по названию, треку, получателю или дате..." 
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm bg-white font-medium transition-all shadow-sm"
-                    />
-                    {searchQuery && (
-                      <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors">
-                        <XCircle size={16}/>
-                      </button>
-                    )}
+                  {/* 🔥 НОВОЕ: Поиск и 3 фильтра */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                    
+                    {/* 1. Поиск */}
+                    <div className="relative group">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16}/>
+                      <input 
+                        type="text" 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Поиск..." 
+                        className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-xs sm:text-sm bg-white font-medium transition-all shadow-sm"
+                      />
+                      {searchQuery && (
+                        <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500 transition-colors">
+                          <XCircle size={14}/>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 2. Получатель */}
+                    <div className="relative group">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16}/>
+                      <select 
+                        value={filterRecipient}
+                        onChange={(e) => setFilterRecipient(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-xs sm:text-sm bg-white font-medium transition-all shadow-sm appearance-none cursor-pointer"
+                      >
+                        <option value="">Все получатели</option>
+                        {uniqueRecipients.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14}/>
+                    </div>
+
+                    {/* 3. Перевозчик */}
+                    <div className="relative group">
+                      <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16}/>
+                      <select 
+                        value={filterCarrier}
+                        onChange={(e) => setFilterCarrier(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-xs sm:text-sm bg-white font-medium transition-all shadow-sm appearance-none cursor-pointer"
+                      >
+                        <option value="">Все перевозчики</option>
+                        {uniqueCarriers.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14}/>
+                    </div>
+
+                    {/* 4. Магазин */}
+                    <div className="relative group">
+                      <Store className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16}/>
+                      <select 
+                        value={filterShop}
+                        onChange={(e) => setFilterShop(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none text-xs sm:text-sm bg-white font-medium transition-all shadow-sm appearance-none cursor-pointer"
+                      >
+                        <option value="">Все магазины</option>
+                        {uniqueShops.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14}/>
+                    </div>
+
                   </div>
                 </div>
 
@@ -447,10 +540,10 @@ export default function DashboardPage() {
                   </div>
                 ) : filteredActive.length === 0 ? (
                   <div className="p-16 flex flex-col items-center justify-center flex-1 text-center text-slate-400">
-                    <div className="p-4 bg-slate-50 rounded-full mb-4"><Search size={32} className="text-slate-300"/></div>
+                    <div className="p-4 bg-slate-50 rounded-full mb-4"><Filter size={32} className="text-slate-300"/></div>
                     <p className="font-bold text-slate-600 mb-1">Ничего не найдено</p>
-                    <p className="text-sm">По запросу «{searchQuery}» нет совпадений.</p>
-                    <button onClick={() => setSearchQuery('')} className="mt-4 text-sm font-bold text-indigo-600 hover:text-indigo-700">Сбросить поиск</button>
+                    <p className="text-sm max-w-xs">По выбранным фильтрам нет совпадений. Попробуйте изменить критерии.</p>
+                    <button onClick={clearFilters} className="mt-4 text-sm font-bold bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl hover:bg-indigo-100 transition-colors">Сбросить фильтры</button>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100 flex-1 overflow-y-auto">
@@ -697,7 +790,6 @@ export default function DashboardPage() {
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">Получатель</label>
-                  {/* 🔥 ИСПРАВЛЕНО: Выпадающий список с ИМЕНЕМ основного получателя */}
                   <select 
                     value={(!editForm.recipientName || editForm.recipientName === ownerFullName || editForm.recipientName === 'Владелец') ? '' : editForm.recipientName} 
                     onChange={e => setEditForm({...editForm, recipientName: e.target.value})} 
