@@ -13,6 +13,24 @@ export interface RiskFactor {
   description: string;
 }
 
+export interface ParcelInput {
+  id: string;
+  name: string;
+  trackCode: string;
+  status: string;
+  value: number;
+  weight?: number | null;
+  recipientName?: string | null;
+  expectedDelivery?: Date | string | null;
+  logisticsHub?: string | null;
+  carrier?: string | null;
+  hubWeatherRisk?: number | null;
+  flightDelayRisk?: number | null;
+  partner?: {
+    name: string;
+  } | null;
+}
+
 // ── Пороги (Законодательство Грузии и логистика) ──
 export const THRESHOLDS = {
   PRICE_LIMIT_GEL: 300,
@@ -32,19 +50,20 @@ function dateMs(d: Date | string | null | undefined): number | null {
 }
 
 // Главная функция расчета
-export function calculateRiskScore(current: any, allParcels: any[]): RiskBreakdown {
+export function calculateRiskScore(current: ParcelInput, allParcels: ParcelInput[], ownerName: string): RiskBreakdown {
   // Не проверяем завершенные посылки
   if (['доставлено', 'утеряно', 'в архиве'].includes((current.status || '').toLowerCase())) {
     return { score: 0, level: 'LOW', factors: [], collisionProbability: 0 };
   }
 
   const factors: RiskFactor[] = [];
-  const recipient = current.recipientName || current.partner || 'Владелец';
+  // 🔥 ИСПРАВЛЕНО: Четко извлекаем имя получателя (строку), даже если partner — это объект из Prisma
+  const recipient = current.recipientName || current.partner?.name || ownerName || 'Владелец';
 
   // Собираем все АКТИВНЫЕ посылки ТОГО ЖЕ получателя
   const sibling = allParcels.filter(p => 
     !['доставлено', 'утеряно', 'в архиве'].includes((p.status || '').toLowerCase()) &&
-    (p.recipientName || p.partner || 'Владелец') === recipient
+    (p.recipientName || p.partner?.name || ownerName || 'Владелец') === recipient
   );
 
   const totalValue = sibling.reduce((s, p) => s + num(p.value), 0);
@@ -115,7 +134,6 @@ export function calculateRiskScore(current: any, allParcels: any[]): RiskBreakdo
   
   const level: 'LOW' | 'MEDIUM' | 'HIGH' = score >= 61 ? 'HIGH' : score >= 31 ? 'MEDIUM' : 'LOW';
 
-  // Вероятность объединения = коллизии + задержки рейсов
   const collisionProbability = Math.min(collisionScore + (flightRisk * 0.5), 100);
 
   return { score, level, factors, collisionProbability };
