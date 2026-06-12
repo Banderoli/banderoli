@@ -37,9 +37,13 @@ export async function GET(req: NextRequest) {
         recipientName: p.recipientName || p.partner?.name || 'Владелец' 
       };
       
-      const risk = calculateRiskScore(parcelWithRecipient, all.map(a => ({
-        ...a, recipientName: a.recipientName || a.partner?.name || 'Владелец'
-      })));
+      const risk = calculateRiskScore(
+  parcelWithRecipient, 
+  all.map(a => ({
+    ...a, recipientName: a.recipientName || a.partner?.name || 'Владелец'
+  })),
+  user.name // 🔥 Добавили 3-й аргумент (Имя владельца)
+);
 
       return { 
         ...parcelWithRecipient, 
