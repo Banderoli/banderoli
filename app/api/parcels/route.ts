@@ -1,8 +1,9 @@
+// app/api/parcels/route.ts
+
 import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
 import { calculateRiskScore } from '@/lib/intelligence/risk-engine';
-// Убрали старый нерабочий импорт Telegram, чтобы не ронять сборку
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'banderoli-fallback-change-in-env'
@@ -37,13 +38,14 @@ export async function GET(req: NextRequest) {
         recipientName: p.recipientName || p.partner?.name || 'Владелец' 
       };
       
+      // 🔥 ИСПРАВЛЕНО: Передаем строку 'Владелец' 3-им аргументом
       const risk = calculateRiskScore(
-  parcelWithRecipient, 
-  all.map(a => ({
-    ...a, recipientName: a.recipientName || a.partner?.name || 'Владелец'
-  })),
-  user.name // 🔥 Добавили 3-й аргумент (Имя владельца)
-);
+        parcelWithRecipient, 
+        all.map(a => ({
+          ...a, recipientName: a.recipientName || a.partner?.name || 'Владелец'
+        })),
+        'Владелец' 
+      );
 
       return { 
         ...parcelWithRecipient, 
