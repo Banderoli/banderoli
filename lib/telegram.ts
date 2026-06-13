@@ -1,32 +1,30 @@
-// lib/telegram.ts
-
-export async function sendTelegramToUser(chatId: string, message: string) {
-  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-
-  if (!BOT_TOKEN) {
-    console.warn("⚠️ TELEGRAM_BOT_TOKEN не найден в .env.");
-    return { success: false };
+export async function sendTelegramToUser(chatId: string, text: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  
+  if (!chatId) {
+    console.error('🚨 ОШИБКА: chatId отсутствует! Невозможно отправить сообщение.');
+    return;
   }
 
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        chat_id: chatId, 
-        text: message, 
-        parse_mode: 'HTML' // Обязательно для красивого форматирования (жирный шрифт, списки)
-      }),
-    });
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
-    if (!response.ok) {
-      console.error("Ошибка Telegram API:", await response.text());
-      return { success: false };
-    }
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: text,
+      parse_mode: 'HTML',
+    }),
+  });
 
-    return { success: true };
-  } catch (error) {
-    console.error("Ошибка сети при отправке в Telegram:", error);
-    return { success: false };
+  const data = await response.json();
+
+  if (!data.ok) {
+    console.error('🚨 ОШИБКА ОТ TELEGRAM:', JSON.stringify(data));
+  } else {
+    console.log('✅ УСПЕХ: Сообщение доставлено в Telegram!');
   }
+
+  return data;
 }
