@@ -105,7 +105,6 @@ export default function DashboardPage() {
 
   const [weather, setWeather] = useState<{ temp: string; condition: string; icon: WeatherIcon }>({ temp: '--', condition: 'Загрузка…', icon: 'unknown' })
   
-  // 🔥 НОВОЕ: 4 независимых состояния для фильтрации
   const [searchQuery, setSearchQuery] = useState('')
   const [filterRecipient, setFilterRecipient] = useState('')
   const [filterCarrier, setFilterCarrier] = useState('')
@@ -133,8 +132,8 @@ export default function DashboardPage() {
           
           if (d.ownerName) setUserName(d.ownerName.split(' ')[0])
           setOwnerFullName(currentFullName)
-          setOwnerId(d.ownerId || '') // 🔥 Добавлено
-          setIsBotConnected(!!d.ownerTelegram) // 🔥 Добавлено
+          setOwnerId(d.ownerId || '') 
+          setIsBotConnected(!!d.ownerTelegram) 
           
           if (d.partners) {
             const filteredPartners = d.partners.filter((p: any) => 
@@ -260,7 +259,6 @@ export default function DashboardPage() {
   const delivered = useMemo(() => parcels.filter(p => p.status.toLowerCase() === 'доставлено'), [parcels])
   const inTransit = useMemo(() => active.filter(p => p.status.toLowerCase() === 'в пути'), [active])
 
-  // 🔥 НОВОЕ: Динамическое формирование списков для фильтров (только то, что реально есть в активных посылках)
   const uniqueRecipients = useMemo(() => {
     const set = new Set<string>();
     active.forEach(p => set.add(p.recipientName || p.partner || ownerFullName));
@@ -279,10 +277,8 @@ export default function DashboardPage() {
     return Array.from(set).sort();
   }, [active]);
 
-  // 🔥 НОВОЕ: Логика фильтрации
   const filteredActive = useMemo(() => {
     return active.filter(p => {
-      // 1. Текстовый поиск
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = p.name.toLowerCase().includes(q);
@@ -294,26 +290,22 @@ export default function DashboardPage() {
         if (!matchName && !matchTrack && !matchRecipient && !matchDate) return false;
       }
 
-      // 2. Фильтр по получателю
       if (filterRecipient && (p.recipientName || p.partner || ownerFullName) !== filterRecipient) {
         return false;
       }
 
-      // 3. Фильтр по перевозчику
       if (filterCarrier && p.carrier !== filterCarrier) {
         return false;
       }
 
-      // 4. Фильтр по магазину
       if (filterShop && p.shop !== filterShop) {
         return false;
       }
 
-      return true; // Если прошла все фильтры - показываем
+      return true; 
     });
   }, [active, searchQuery, filterRecipient, filterCarrier, filterShop, ownerFullName]);
 
-  // Функция полного сброса
   const clearFilters = () => {
     setSearchQuery('');
     setFilterRecipient('');
@@ -472,10 +464,8 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                   
-                  {/* 🔥 НОВОЕ: Поиск и 3 фильтра */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                     
-                    {/* 1. Поиск */}
                     <div className="relative group">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16}/>
                       <input 
@@ -492,7 +482,6 @@ export default function DashboardPage() {
                       )}
                     </div>
 
-                    {/* 2. Получатель */}
                     <div className="relative group">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16}/>
                       <select 
@@ -506,7 +495,6 @@ export default function DashboardPage() {
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14}/>
                     </div>
 
-                    {/* 3. Перевозчик */}
                     <div className="relative group">
                       <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16}/>
                       <select 
@@ -520,7 +508,6 @@ export default function DashboardPage() {
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14}/>
                     </div>
 
-                    {/* 4. Магазин */}
                     <div className="relative group">
                       <Store className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={16}/>
                       <select 
@@ -732,6 +719,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* 🔥 ВОТ ИСПРАВЛЕННЫЙ БЛОК TELEGRAM-КНОПКИ */}
               <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-5 sm:p-6 rounded-3xl shadow-md text-white relative overflow-hidden group mt-auto">
                 <div className="absolute -right-5 -bottom-5 opacity-10 group-hover:scale-110 transition-transform duration-500"><MessageCircle size={120}/></div>
                 <div className="relative z-10">
@@ -742,9 +730,15 @@ export default function DashboardPage() {
                   <p className="text-indigo-100 text-xs mb-5 leading-relaxed font-medium">Мгновенные уведомления о статусах, таможенных рисках и задержках рейсов.</p>
                   
                   <a 
-                    href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}?start=${ownerId}`}
-                    target="_blank"
+                    href={ownerId ? `https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'Banderoli_bot'}?start=${ownerId}` : '#'}
+                    target={ownerId ? "_blank" : "_self"}
                     rel="noopener noreferrer"
+                    onClick={(e) => {
+                      if (!ownerId) {
+                        e.preventDefault();
+                        alert('ID профиля еще загружается или не найден. Пожалуйста, обновите страницу.');
+                      }
+                    }}
                     className={`w-full py-3 rounded-2xl font-black text-sm transition-all shadow-sm hover:shadow-md text-center block ${
                       isBotConnected 
                         ? 'bg-emerald-500 text-white hover:bg-emerald-600' 

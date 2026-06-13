@@ -8,7 +8,7 @@ import { sendTelegramToUser } from '@/lib/telegram';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-  // Защита крон-задачи (проверяет секретный ключ в заголовках)
+  // Защита крон-задачи
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
   
@@ -22,10 +22,10 @@ export async function GET(req: Request) {
     // 1. Очищаем старые решенные алерты
     await prisma.alert.deleteMany({ where: { isResolved: true } });
 
-    // 2. Обновляем авиарейсы (вызов заглушки)
+    // 2. Обновляем авиарейсы
     await checkFlightDelays();
 
-    // 3. Загружаем пользователей со всеми их активными посылками и получателями
+    // 3. Загружаем пользователей со всеми их активными посылками
     const allUsers = await prisma.user.findMany({
       include: {
         parcels: {
@@ -39,7 +39,6 @@ export async function GET(req: Request) {
     let alertsSentCount = 0;
 
     for (const user of allUsers) {
-      // Подготавливаем массив посылок в формате, который ждет risk-engine
       const mappedParcels = user.parcels.map(p => ({
         ...p,
         partner: p.partner ? { name: p.partner.name } : null
@@ -54,11 +53,10 @@ export async function GET(req: Request) {
         // Запускаем пересчет рисков
         const risk = calculateRiskScore(formattedParcel, mappedParcels, user.name);
         
-        // Запоминаем старый риск посылки из базы, чтобы сравнить его
         const oldRiskScore = parcel.customsRiskScore || 0;
         const newRiskScore = risk.score;
 
-        // Обновляем данные рисков в базе данных Prisma
+        // Обновляем данные в БД
         await prisma.parcel.update({
           where: { id: parcel.id },
           data: { 
@@ -69,12 +67,11 @@ export async function GET(req: Request) {
 
         updatedCount++;
 
-        // 🔥 DELTA CHECK + TELEGRAM TRIGGER
-        // Если риск вырос и стал опасным (>= 60), а раньше был безопасным (< 60)
+        // 🔥 DELTA CHECK (ЗАЩИТА ОТ СПАМА)
+        // Бот пишет ТОЛЬКО если риск только что превысил лимит (был < 60, стал >= 60)
         if (oldRiskScore < 60 && newRiskScore >= 60 && user.telegramChatId) {
           const recipient = parcel.recipientName || parcel.partner?.name || user.name || 'Владелец';
           
-          // Создаем красивое сообщение для Telegram
           const msg = `⚠️ <b>ОБНАРУЖЕН ТАМОЖЕННЫЙ РИСК!</b>\n\n` +
                       `Груз: <b>${parcel.name}</b>\n` +
                       `Трек-код: <code>${parcel.trackCode}</code>\n` +
@@ -82,8 +79,11 @@ export async function GET(req: Request) {
                       `🚨 Индекс опасности коллизии вырос до <b>${newRiskScore}%</b>.\n` +
                       `Посылки этого получателя могут пересечься на границе и превысить беспошлинный лимит Грузии в 300 ₾. Рекомендуется распределить грузы или изменить получателя.`;
           
-          // Отправляем пользователю в чат
-          await sendTelegramToUser(user.telegramChatId, msg);
+          // Отправляем сообщение асинхронно, чтобы не тормозить цикл
+          sendTelegramToUser(user.telegramChatId, msg).catch(err => 
+            console.error(`Ошибка отправки Telegram юзеру ${user.telegramChatId}:`, err)
+          );
+          
           alertsSentCount++;
         }
       }
