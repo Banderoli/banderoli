@@ -1,0 +1,18 @@
+{
+  "name": "@banderoli/common",
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint \"src/**/*.ts\"",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@banderoli/database": "*",
+    "@nestjs/common": "^11.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

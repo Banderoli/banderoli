@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Пользователь (владелец аккаунта) ───────────────────────────────────────
+
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  emailVerified    DateTime?
+  passwordHash     String?
+  name             String?
+  image            String?
+  telegramChatId   String?           @unique
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  familyGroup      FamilyGroup?      @relation("FamilyGroupOwner")
+  familyMembership FamilyMember?
+  recipientProfiles RecipientProfile[]
+  accounts         Account[]
+  sessions         Session[]
+  aiUsage          AiUsage[]
+
+  @@index([email])
+}
+
+// ─── Дневная квота ИИ-функций (бесплатный лимит запросов) ─────────────────────
+
+model AiUsage {
+  id     String @id @default(cuid())
+  userId String
+  day    String // YYYY-MM-DD (UTC)
+  count  Int    @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+  @@index([userId])
+}
+
+// ─── NextAuth ────────────────────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Семейная группа ─────────────────────────────────────────────────────────
+
+model FamilyGroup {
+  id        String         @id @default(cuid())
+  name      String
+  ownerId   String         @unique
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  owner   User           @relation("FamilyGroupOwner", fields: [ownerId], references: [id])
+  members FamilyMember[]
+}
+
+model FamilyMember {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  familyGroupId String
+  role          FamilyRole @default(MEMBER)
+  joinedAt      DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyGroup FamilyGroup @relation(fields: [familyGroupId], references: [id], onDelete: Cascade)
+}
+
+enum FamilyRole {
+  OWNER
+  MEMBER
+}
+
+// ─── Профиль получателя ──────────────────────────────────────────────────────
+
+model RecipientProfile {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parcels Parcel[]
+
+  @@index([userId])
+}
+
+// ─── Посылка ─────────────────────────────────────────────────────────────────
+
+model Parcel {
+  id                   String        @id @default(cuid())
+  recipientProfileId   String
+  trackingNumber       String
+  carrier              String?
+  description          String?
+  declaredValueUsd     Decimal?      @db.Decimal(10, 2)
+  declaredValueGel     Decimal?      @db.Decimal(10, 2)
+  weightKg             Decimal?      @db.Decimal(6, 3)
+  quantity             Int           @default(1)
+  status               ParcelStatus  @default(PENDING)
+  currentExposureScore Int           @default(0)
+  estimatedArrival     DateTime?
+  shippedAt            DateTime?
+  deliveredAt          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  recipientProfile RecipientProfile  @relation(fields: [recipientProfileId], references: [id], onDelete: Cascade)
+  logisticsEvents  LogisticsEvent[]
+
+  @@index([recipientProfileId])
+  @@index([trackingNumber])
+  @@index([status])
+}
+
+enum ParcelStatus {
+  PENDING
+  IN_TRANSIT
+  IN_CUSTOMS
+  CUSTOMS_CLEARED
+  DELIVERED
+  RETURNED
+  EXCEPTION
+}
+
+// ─── Логистические события (трекинг) ─────────────────────────────────────────
+
+model LogisticsEvent {
+  id          String   @id @default(cuid())
+  parcelId    String
+  status      String
+  description String?
+  location    String?
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+
+  parcel Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+
+  @@index([parcelId, occurredAt])
+}
+
+// ─── Правила таможенного комплаенса (настраиваемые) ──────────────────────────
+
+model CustomsRule {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  valueJson   Json
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+}

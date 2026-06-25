@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-client",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@banderoli/web-client"],
+      "port": 3000
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+import type { ExposureResult, ParcelResponse } from '@banderoli/contracts';
+
+export interface DashboardMetrics {
+  inTransit: number;
+  inCustoms: number;
+  spentUsd: number;
+  spentGel: number;
+}
+
+export interface RecipientOption {
+  id: string;
+  name: string;
+}
+
+export interface DashboardData {
+  recipientName: string;
+  plan: string;
+  city: string;
+  metrics: DashboardMetrics;
+  weightUsedKg: number;
+  weightLimitKg: number;
+  parcels: ParcelResponse[];
+  exposure: ExposureResult;
+  recipients: RecipientOption[];
+  selectedRecipientId: string;
+}
+
+const CREATED = '2026-06-15T10:00:00.000Z';
+const UPDATED = '2026-06-21T08:30:00.000Z';
+
+const parcels: ParcelResponse[] = [
+  {
+    id: 'p_nike',
+    recipientProfileId: 'rec_demo',
+    trackingNumber: '9400111899223',
+    carrier: 'USPS',
+    description: 'Nike Air Max 270 · ASOS',
+    declaredValueUsd: 44,
+    declaredValueGel: 119,
+    weightKg: 1.2,
+    quantity: 1,
+    status: 'IN_CUSTOMS',
+    currentExposureScore: 50,
+    estimatedArrival: '2026-06-23T00:00:00.000Z',
+    deliveredAt: null,
+    createdAt: CREATED,
+    updatedAt: UPDATED,
+  },
+  {
+    id: 'p_fenty',
+    recipientProfileId: 'rec_demo',
+    trackingNumber: '7749003311',
+    carrier: 'FedEx',
+    description: 'Косметика Fenty Beauty · Sephora',
+    declaredValueUsd: 33,
+    declaredValueGel: 88,
+    weightKg: 0.6,
+    quantity: 1,
+    status: 'IN_TRANSIT',
+    currentExposureScore: 50,
+    estimatedArrival: '2026-06-23T00:00:00.000Z',
+    deliveredAt: null,
+    createdAt: CREATED,
+    updatedAt: UPDATED,
+  },
+  {
+    id: 'p_books',
+    recipientProfileId: 'rec_demo',
+    trackingNumber: '1234556677',
+    carrier: 'DHL',
+    description: 'Книги × 3 · Book Depository',
+    declaredValueUsd: 34,
+    declaredValueGel: 92,
+    weightKg: 1.4,
+    quantity: 3,
+    status: 'IN_TRANSIT',
+    currentExposureScore: 0,
+    estimatedArrival: '2026-06-26T00:00:00.000Z',
+    deliveredAt: null,
+    createdAt: CREATED,
+    updatedAt: UPDATED,
+  },
+  {
+    id: 'p_sony',
+    recipientProfileId: 'rec_demo',
+    trackingNumber: '1Z999AA10123',
+    carrier: 'UPS',
+    description: 'Наушники Sony WH-1000XM5',
+    declaredValueUsd: 279,
+    declaredValueGel: 753,
+    weightKg: 0.5,
+    quantity: 1,
+    status: 'DELIVERED',
+    currentExposureScore: 0,
+    estimatedArrival: '2026-06-18T00:00:00.000Z',
+    deliveredAt: '2026-06-18T14:20:00.000Z',
+    createdAt: CREATED,
+    updatedAt: UPDATED,
+  },
+];
+
+const exposure: ExposureResult = {
+  recipientProfileId: 'rec_demo',
+  score: 50,
+  level: 'MEDIUM',
+  totalValueGel: 207,
+  limitGel: 300,
+  remainingGel: 93,
+  alerts: [
+    {
+      code: 'JOINT_ARRIVAL',
+      message:
+        'Совместное прибытие 2 посылок (23 июня): совокупная стоимость ≈207 GEL. ' +
+        'При превышении 300 GEL НДС 18% начисляется на всю сумму.',
+    },
+  ],
+};
+
+export const MOCK_DASHBOARD: DashboardData = {
+  recipientName: 'Алия М.',
+  plan: 'Pro',
+  city: 'Тбилиси',
+  metrics: { inTransit: 2, inCustoms: 1, spentUsd: 390, spentGel: 1053 },
+  weightUsedKg: 6.2,
+  weightLimitKg: 30,
+  parcels,
+  exposure,
+  recipients: [{ id: 'rec_demo', name: 'Алия М.' }],
+  selectedRecipientId: 'rec_demo',
+};

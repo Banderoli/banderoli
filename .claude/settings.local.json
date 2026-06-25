@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pandoc \"D:\\\\banderoli\\\\CLAUDE.docx\" -t markdown)"
+    ]
+  }
+}
