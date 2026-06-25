@@ -57,6 +57,6 @@ export function buildAnalytics(
     deliveredCount: parcels.filter((p) => p.status === 'DELIVERED').length,
     byCarrier: bucketize(parcels, (p) => p.carrier ?? 'Без перевозчика'),
     byRecipient: bucketize(parcels, (p) => nameById.get(p.recipientProfileId) ?? 'Неизвестно'),
-    byStore: bucketize(parcels, (p) => parseStore(p.description)),
+    byStore: bucketize(parcels, (p) => p.store ?? parseStore(p.description)),
   };
 }

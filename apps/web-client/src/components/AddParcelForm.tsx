@@ -2,13 +2,25 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
+import type { CarrierResponse, StoreResponse } from '@banderoli/contracts';
 import { createParcelAction, type ParcelFormState } from '@/app/parcel-actions';
+import type { RecipientOption } from '@/lib/mock-data';
 
 const INITIAL: ParcelFormState = {};
 const inputClass =
   'w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm outline-none focus:border-brand';
 
-export function AddParcelForm() {
+export function AddParcelForm({
+  recipients,
+  selectedRecipientId,
+  stores,
+  carriers,
+}: {
+  recipients: RecipientOption[];
+  selectedRecipientId: string;
+  stores: StoreResponse[];
+  carriers: CarrierResponse[];
+}) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createParcelAction, INITIAL);
   const formRef = useRef<HTMLFormElement>(null);
@@ -53,9 +65,54 @@ export function AddParcelForm() {
             </div>
 
             <form ref={formRef} action={formAction} className="space-y-2.5">
+              {recipients.length > 1 ? (
+                <label className="block">
+                  <span className="mb-1 block text-xs text-muted">Получатель</span>
+                  <select
+                    name="recipientProfileId"
+                    defaultValue={selectedRecipientId}
+                    className={inputClass}
+                  >
+                    {recipients.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <input type="hidden" name="recipientProfileId" value={recipients[0]?.id ?? ''} />
+              )}
+
               <input name="trackingNumber" required placeholder="Трек-номер *" className={inputClass} />
               <input name="description" placeholder="Описание (напр. Кроссовки Nike)" className={inputClass} />
-              <input name="carrier" placeholder="Перевозчик (DHL, FedEx, USPS…)" className={inputClass} />
+
+              {stores.length > 0 ? (
+                <select name="store" defaultValue="" className={inputClass}>
+                  <option value="">— магазин —</option>
+                  {stores.map((s) => (
+                    <option key={s.id} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input name="store" placeholder="Магазин (добавьте в Настройках)" className={inputClass} />
+              )}
+
+              {carriers.length > 0 ? (
+                <select name="carrier" defaultValue="" className={inputClass}>
+                  <option value="">— перевозчик —</option>
+                  {carriers.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input name="carrier" placeholder="Перевозчик (добавьте в Настройках)" className={inputClass} />
+              )}
+
               <div className="grid grid-cols-3 gap-2">
                 <input name="declaredValueUsd" type="number" min="0" step="0.01" placeholder="$ цена" className={inputClass} />
                 <input name="weightKg" type="number" min="0" step="0.1" placeholder="кг" className={inputClass} />

@@ -23,5 +23,8 @@ export type {
   Parcel,
   LogisticsEvent,
   CustomsRule,
+  Store,
+  Carrier,
+  AiUsage,
 } from '@prisma/client';
 export { ParcelStatus, FamilyRole } from '@prisma/client';

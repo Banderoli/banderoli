@@ -8,6 +8,7 @@ import { LimitBar } from '@/components/LimitBar';
 import { AddParcelForm } from '@/components/AddParcelForm';
 import { RecipientSwitcher } from '@/components/RecipientSwitcher';
 import { loadDashboard } from '@/lib/dashboard';
+import { listCarriers, listStores } from '@/lib/api';
 import { formatGel, formatUsd } from '@/lib/format';
 
 export default async function DashboardPage({
@@ -21,7 +22,11 @@ export default async function DashboardPage({
   }
 
   const { recipient } = await searchParams;
-  const { data, demo } = await loadDashboard(session.user.id, recipient);
+  const [{ data, demo }, stores, carriers] = await Promise.all([
+    loadDashboard(session.user.id, recipient),
+    listStores(session.user.id),
+    listCarriers(session.user.id),
+  ]);
   const { exposure } = data;
   const exposureAccent =
     exposure.level === 'HIGH' ? 'high' : exposure.level === 'MEDIUM' ? 'medium' : undefined;
@@ -45,7 +50,12 @@ export default async function DashboardPage({
               />
             ) : null}
           </div>
-          <AddParcelForm />
+          <AddParcelForm
+            recipients={data.recipients}
+            selectedRecipientId={data.selectedRecipientId}
+            stores={stores}
+            carriers={carriers}
+          />
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">

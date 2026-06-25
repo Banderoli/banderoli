@@ -25,6 +25,8 @@ model User {
   familyGroup      FamilyGroup?      @relation("FamilyGroupOwner")
   familyMembership FamilyMember?
   recipientProfiles RecipientProfile[]
+  stores           Store[]
+  carriers         Carrier[]
   accounts         Account[]
   sessions         Session[]
   aiUsage          AiUsage[]
@@ -119,12 +121,39 @@ model RecipientProfile {
   id        String   @id @default(cuid())
   userId    String
   name      String
+  email     String?
+  telegram  String?
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   parcels Parcel[]
+
+  @@index([userId])
+}
+
+// ─── Магазины и перевозчики (управляемые списки пользователя) ─────────────────
+
+model Store {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  url       String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Carrier {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -136,6 +165,7 @@ model Parcel {
   recipientProfileId   String
   trackingNumber       String
   carrier              String?
+  store                String?
   description          String?
   declaredValueUsd     Decimal?      @db.Decimal(10, 2)
   declaredValueGel     Decimal?      @db.Decimal(10, 2)

@@ -9,9 +9,8 @@ import {
   Package,
   PackageOpen,
   Scale,
-  Send,
+  Settings,
   Sparkles,
-  Users,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { signOutAction } from '@/app/auth-actions';
@@ -29,13 +28,7 @@ const SECTIONS: Array<{ title?: string; items: NavEntry[] }> = [
       { label: 'Посылки', icon: PackageOpen, href: '/dashboard/parcels' },
       { label: 'Аналитика', icon: BarChart3, href: '/dashboard/analytics' },
       { label: 'ИИ функции', icon: Sparkles, href: '/dashboard/ai' },
-    ],
-  },
-  {
-    title: 'Семья',
-    items: [
-      { label: 'Получатели', icon: Users, href: '/dashboard/recipients' },
-      { label: 'Telegram-бот', icon: Send },
+      { label: 'Настройки', icon: Settings, href: '/dashboard/settings' },
     ],
   },
   {

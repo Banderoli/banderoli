@@ -38,16 +38,23 @@ export async function createParcelAction(
   }
 
   const userId = session.user.id;
+  const submittedRecipientId = optionalString(formData.get('recipientProfileId'));
 
   try {
     const recipients = await listRecipients(userId);
+    // Берём выбранного получателя (если он принадлежит пользователю);
+    // иначе — первого, иначе создаём получателя по умолчанию.
     const recipientId =
-      recipients[0]?.id ?? (await createRecipient(userId, { name: 'Я', isDefault: true })).id;
+      (submittedRecipientId && recipients.some((r) => r.id === submittedRecipientId)
+        ? submittedRecipientId
+        : recipients[0]?.id) ??
+      (await createRecipient(userId, { name: 'Я', isDefault: true })).id;
 
     const body: CreateParcelBody = {
       recipientProfileId: recipientId,
       trackingNumber,
       carrier: optionalString(formData.get('carrier')),
+      store: optionalString(formData.get('store')),
       description: optionalString(formData.get('description')),
       declaredValueUsd: optionalNumber(formData.get('declaredValueUsd')),
       weightKg: optionalNumber(formData.get('weightKg')),
@@ -56,7 +63,7 @@ export async function createParcelAction(
 
     await createParcel(userId, body);
   } catch {
-    return { error: 'Не удалось добавить посылку. Проверьте, что API-шлюз запущен.' };
+    return { error: 'Не удалось добавить посылку. Попробуйте ещё раз.' };
   }
 
   revalidatePath('/dashboard');

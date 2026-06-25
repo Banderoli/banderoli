@@ -12,9 +12,17 @@ import {
   type RecipientResponse,
   type ReviewResponse,
   type ReviewSummary,
+  type StoreResponse,
+  type CarrierResponse,
 } from '@banderoli/contracts';
 import { Prisma, prisma } from '@banderoli/database';
-import type { LogisticsEvent, Parcel, RecipientProfile } from '@banderoli/database';
+import type {
+  Carrier,
+  LogisticsEvent,
+  Parcel,
+  RecipientProfile,
+  Store,
+} from '@banderoli/database';
 import {
   calculateExposure,
   type ParcelExposureInput,
@@ -47,6 +55,8 @@ function serializeRecipient(r: RecipientProfile): RecipientResponse {
     id: r.id,
     userId: r.userId,
     name: r.name,
+    email: r.email,
+    telegram: r.telegram,
     isDefault: r.isDefault,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
@@ -59,6 +69,7 @@ function serializeParcel(p: Parcel): ParcelResponse {
     recipientProfileId: p.recipientProfileId,
     trackingNumber: p.trackingNumber,
     carrier: p.carrier,
+    store: p.store,
     description: p.description,
     declaredValueUsd: toNumber(p.declaredValueUsd),
     declaredValueGel: toNumber(p.declaredValueGel),
@@ -115,15 +126,28 @@ export async function listRecipients(userId: string): Promise<RecipientResponse[
   return rows.map(serializeRecipient);
 }
 
+export interface RecipientInput {
+  name?: string;
+  email?: string | null;
+  telegram?: string | null;
+  isDefault?: boolean;
+}
+
 export async function createRecipient(
   userId: string,
-  body: { name: string; isDefault?: boolean },
+  body: RecipientInput & { name: string },
 ): Promise<RecipientResponse> {
   if (body.isDefault) {
     await clearDefault(userId);
   }
   const created = await prisma.recipientProfile.create({
-    data: { userId, name: body.name, isDefault: body.isDefault ?? false },
+    data: {
+      userId,
+      name: body.name,
+      email: body.email ?? null,
+      telegram: body.telegram ?? null,
+      isDefault: body.isDefault ?? false,
+    },
   });
   return serializeRecipient(created);
 }
@@ -131,7 +155,7 @@ export async function createRecipient(
 export async function updateRecipient(
   userId: string,
   recipientId: string,
-  body: { name?: string; isDefault?: boolean },
+  body: RecipientInput,
 ): Promise<RecipientResponse> {
   await ensureRecipientOwned(userId, recipientId);
   if (body.isDefault) {
@@ -149,12 +173,61 @@ export async function deleteRecipient(userId: string, recipientId: string): Prom
   await prisma.recipientProfile.delete({ where: { id: recipientId } });
 }
 
+// ─── Магазины ─────────────────────────────────────────────────────────────────
+
+function serializeStore(s: Store): StoreResponse {
+  return { id: s.id, userId: s.userId, name: s.name, url: s.url, createdAt: s.createdAt.toISOString() };
+}
+
+export async function listStores(userId: string): Promise<StoreResponse[]> {
+  const rows = await prisma.store.findMany({ where: { userId }, orderBy: { name: 'asc' } });
+  return rows.map(serializeStore);
+}
+
+export async function createStore(
+  userId: string,
+  body: { name: string; url?: string | null },
+): Promise<StoreResponse> {
+  const created = await prisma.store.create({
+    data: { userId, name: body.name, url: body.url ?? null },
+  });
+  return serializeStore(created);
+}
+
+export async function deleteStore(userId: string, storeId: string): Promise<void> {
+  await prisma.store.deleteMany({ where: { id: storeId, userId } });
+}
+
+// ─── Перевозчики ──────────────────────────────────────────────────────────────
+
+function serializeCarrier(c: Carrier): CarrierResponse {
+  return { id: c.id, userId: c.userId, name: c.name, createdAt: c.createdAt.toISOString() };
+}
+
+export async function listCarriers(userId: string): Promise<CarrierResponse[]> {
+  const rows = await prisma.carrier.findMany({ where: { userId }, orderBy: { name: 'asc' } });
+  return rows.map(serializeCarrier);
+}
+
+export async function createCarrier(
+  userId: string,
+  body: { name: string },
+): Promise<CarrierResponse> {
+  const created = await prisma.carrier.create({ data: { userId, name: body.name } });
+  return serializeCarrier(created);
+}
+
+export async function deleteCarrier(userId: string, carrierId: string): Promise<void> {
+  await prisma.carrier.deleteMany({ where: { id: carrierId, userId } });
+}
+
 // ─── Посылки ──────────────────────────────────────────────────────────────────
 
 export interface CreateParcelBody {
   recipientProfileId: string;
   trackingNumber: string;
   carrier?: string;
+  store?: string;
   description?: string;
   declaredValueUsd?: number;
   weightKg?: number;
@@ -223,6 +296,7 @@ export async function createParcel(
       recipientProfileId: body.recipientProfileId,
       trackingNumber: body.trackingNumber,
       carrier: body.carrier ?? null,
+      store: body.store ?? null,
       description: body.description ?? null,
       declaredValueUsd,
       declaredValueGel,

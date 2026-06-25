@@ -8,6 +8,7 @@ export function serializeParcel(parcel: Parcel): ParcelResponse {
     recipientProfileId: parcel.recipientProfileId,
     trackingNumber: parcel.trackingNumber,
     carrier: parcel.carrier,
+    store: parcel.store,
     description: parcel.description,
     declaredValueUsd: decimalToNumber(parcel.declaredValueUsd),
     declaredValueGel: decimalToNumber(parcel.declaredValueGel),

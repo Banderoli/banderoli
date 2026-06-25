@@ -61,6 +61,7 @@ export class ParcelsService {
         recipientProfileId: dto.recipientProfileId,
         trackingNumber: dto.trackingNumber,
         carrier: dto.carrier ?? null,
+        store: dto.store ?? null,
         description: dto.description ?? null,
         declaredValueUsd,
         declaredValueGel,
