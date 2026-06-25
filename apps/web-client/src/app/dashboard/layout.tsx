@@ -12,9 +12,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const name = session.user.name ?? session.user.email ?? 'Пользователь';
 
   return (
-    <div className="flex min-h-screen">
+    <div className="min-h-screen lg:flex">
       <Sidebar name={name} />
-      <div className="flex-1">{children}</div>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }

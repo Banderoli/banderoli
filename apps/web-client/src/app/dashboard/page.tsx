@@ -32,7 +32,7 @@ export default async function DashboardPage({
     exposure.level === 'HIGH' ? 'high' : exposure.level === 'MEDIUM' ? 'medium' : undefined;
 
   return (
-    <main className="px-6 py-6">
+    <main className="px-4 py-5 sm:px-6 sm:py-6">
         {demo ? (
           <div className="mb-4 flex items-center gap-2 rounded-md bg-medium-soft px-3 py-2 text-xs text-medium">
             <Info size={14} aria-hidden />
@@ -40,7 +40,7 @@ export default async function DashboardPage({
           </div>
         ) : null}
 
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-medium">Мои посылки</h1>
             {data.recipients.length > 1 ? (

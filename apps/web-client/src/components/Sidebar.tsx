@@ -1,16 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3,
   LayoutDashboard,
   LogOut,
+  Menu,
   Package,
   PackageOpen,
   Scale,
   Settings,
   Sparkles,
+  X,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { signOutAction } from '@/app/auth-actions';
@@ -37,23 +40,32 @@ const SECTIONS: Array<{ title?: string; items: NavEntry[] }> = [
   },
 ];
 
-export function Sidebar({ name }: { name: string }) {
-  const pathname = usePathname();
-  const initials = name
-    .split(/[\s@.]+/)
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-
+function Brand() {
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-hairline bg-surface py-5">
-      <div className="flex items-center gap-2 px-4 pb-5 text-[15px] font-medium">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-white">
-          <Package size={15} aria-hidden />
-        </span>
-        Banderoli
+    <div className="flex items-center gap-2 text-[15px] font-medium">
+      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-white">
+        <Package size={15} aria-hidden />
+      </span>
+      Banderoli
+    </div>
+  );
+}
+
+function NavContent({
+  name,
+  initials,
+  pathname,
+  onNavigate,
+}: {
+  name: string;
+  initials: string;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <>
+      <div className="px-4 pb-5">
+        <Brand />
       </div>
 
       {SECTIONS.map((section, i) => (
@@ -66,7 +78,7 @@ export function Sidebar({ name }: { name: string }) {
           {section.items.map((item) => {
             const Icon = item.icon;
             const active = item.href === pathname;
-            const className = `flex items-center gap-2.5 px-4 py-2 text-sm ${
+            const className = `flex items-center gap-2.5 px-4 py-2.5 text-sm ${
               active ? 'bg-canvas font-medium text-ink' : 'text-muted'
             }`;
 
@@ -80,7 +92,12 @@ export function Sidebar({ name }: { name: string }) {
             }
 
             return (
-              <Link key={item.label} href={item.href} className={`${className} transition hover:text-ink`}>
+              <Link
+                key={item.label}
+                href={item.href}
+                onClick={onNavigate}
+                className={`${className} transition hover:text-ink`}
+              >
                 <Icon size={16} aria-hidden />
                 {item.label}
               </Link>
@@ -108,6 +125,64 @@ export function Sidebar({ name }: { name: string }) {
           </button>
         </form>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function Sidebar({ name }: { name: string }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  const initials = name
+    .split(/[\s@.]+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+  return (
+    <>
+      {/* Мобильная верхняя панель */}
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-hairline bg-surface px-4 py-3 lg:hidden">
+        <Brand />
+        <button
+          type="button"
+          aria-label="Меню"
+          onClick={() => setOpen(true)}
+          className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition hover:bg-canvas hover:text-ink"
+        >
+          <Menu size={20} aria-hidden />
+        </button>
+      </div>
+
+      {/* Десктопный сайдбар */}
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-hairline bg-surface py-5 lg:flex">
+        <NavContent name={name} initials={initials} pathname={pathname} />
+      </aside>
+
+      {/* Мобильное выезжающее меню */}
+      {open ? (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
+          <aside className="absolute left-0 top-0 flex h-full w-72 max-w-[80%] flex-col border-r border-hairline bg-surface py-5">
+            <button
+              type="button"
+              aria-label="Закрыть меню"
+              onClick={() => setOpen(false)}
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-canvas hover:text-ink"
+            >
+              <X size={18} aria-hidden />
+            </button>
+            <NavContent
+              name={name}
+              initials={initials}
+              pathname={pathname}
+              onNavigate={() => setOpen(false)}
+            />
+          </aside>
+        </div>
+      ) : null}
+    </>
   );
 }

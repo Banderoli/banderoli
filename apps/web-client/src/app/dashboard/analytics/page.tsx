@@ -20,7 +20,7 @@ export default async function AnalyticsPage() {
   const analytics = buildAnalytics(parcels, recipients);
 
   return (
-    <div className="px-6 py-8">
+    <div className="px-4 py-6 sm:px-6 sm:py-8">
       <h1 className="text-lg font-medium">Аналитика</h1>
       <p className="mt-1 text-sm text-muted">Расходы по перевозчикам, получателям и магазинам.</p>
 

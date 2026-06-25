@@ -44,7 +44,7 @@ export default async function SettingsPage() {
   const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? '';
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 px-6 py-8">
+    <div className="mx-auto max-w-3xl space-y-5 px-4 py-6 sm:px-6 sm:py-8">
       <h1 className="text-lg font-medium">Настройки</h1>
 
       {main ? (
