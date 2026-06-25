@@ -2,8 +2,8 @@
 
 import { useActionState } from 'react';
 import Link from 'next/link';
-import { Package } from 'lucide-react';
 import { loginAction, registerAction, type AuthFormState } from '@/app/auth-actions';
+import { Logo } from '@/components/Logo';
 
 const INITIAL: AuthFormState = {};
 
@@ -17,11 +17,8 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-xl border border-hairline bg-surface p-6">
-        <div className="mb-5 flex items-center gap-2 text-lg font-medium">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-white">
-            <Package size={17} aria-hidden />
-          </span>
-          Banderoli
+        <div className="mb-5">
+          <Logo className="text-2xl" />
         </div>
 
         <h1 className="mb-1 text-base font-medium">

@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Package,
   PackageOpen,
   Scale,
   Settings,
@@ -17,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { signOutAction } from '@/app/auth-actions';
+import { Logo } from './Logo';
 
 interface NavEntry {
   label: string;
@@ -41,14 +41,7 @@ const SECTIONS: Array<{ title?: string; items: NavEntry[] }> = [
 ];
 
 function Brand() {
-  return (
-    <div className="flex items-center gap-2 text-[15px] font-medium">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-white">
-        <Package size={15} aria-hidden />
-      </span>
-      Banderoli
-    </div>
-  );
+  return <Logo className="text-[17px]" />;
 }
 
 function NavContent({
