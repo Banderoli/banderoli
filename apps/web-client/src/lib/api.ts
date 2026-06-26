@@ -330,6 +330,59 @@ export async function updateParcelStatus(
   await recomputeExposure(parcel.recipientProfileId);
 }
 
+export async function deleteParcel(userId: string, parcelId: string): Promise<void> {
+  const parcel = await prisma.parcel.findFirst({
+    where: { id: parcelId, recipientProfile: { userId } },
+    select: { id: true, recipientProfileId: true },
+  });
+  if (!parcel) {
+    throw new Error('Посылка не найдена');
+  }
+  await prisma.parcel.delete({ where: { id: parcelId } });
+  await recomputeExposure(parcel.recipientProfileId);
+}
+
+export interface UpdateParcelBody {
+  trackingNumber?: string;
+  carrier?: string | null;
+  store?: string | null;
+  description?: string | null;
+  declaredValueUsd?: number | null;
+  weightKg?: number | null;
+  quantity?: number;
+}
+
+export async function updateParcel(
+  userId: string,
+  parcelId: string,
+  body: UpdateParcelBody,
+): Promise<ParcelResponse> {
+  const existing = await prisma.parcel.findFirst({
+    where: { id: parcelId, recipientProfile: { userId } },
+    select: { id: true, recipientProfileId: true },
+  });
+  if (!existing) {
+    throw new Error('Посылка не найдена');
+  }
+
+  const data: Prisma.ParcelUpdateInput = {};
+  if (body.trackingNumber !== undefined) data.trackingNumber = body.trackingNumber;
+  if (body.carrier !== undefined) data.carrier = body.carrier;
+  if (body.store !== undefined) data.store = body.store;
+  if (body.description !== undefined) data.description = body.description;
+  if (body.weightKg !== undefined) data.weightKg = body.weightKg;
+  if (body.quantity !== undefined) data.quantity = body.quantity;
+  if (body.declaredValueUsd !== undefined) {
+    data.declaredValueUsd = body.declaredValueUsd;
+    data.declaredValueGel =
+      body.declaredValueUsd === null ? null : round2(body.declaredValueUsd * USD_TO_GEL_RATE);
+  }
+
+  const updated = await prisma.parcel.update({ where: { id: parcelId }, data });
+  await recomputeExposure(existing.recipientProfileId);
+  return serializeParcel(updated);
+}
+
 // ─── Экспозиция ───────────────────────────────────────────────────────────────
 
 export async function getExposure(

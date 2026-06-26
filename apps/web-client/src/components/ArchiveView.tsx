@@ -4,13 +4,10 @@ import { useMemo, useState } from 'react';
 import type { ParcelResponse } from '@banderoli/contracts';
 import { ArchiveCard } from './ArchiveCard';
 
-const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'Все статусы' },
-  { value: 'DELIVERED', label: 'Доставлено' },
+const TABS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Все посылки' },
   { value: 'EXCEPTION', label: 'Утеряно' },
-  { value: 'RETURNED', label: 'Возврат' },
-  { value: 'IN_TRANSIT', label: 'В пути' },
-  { value: 'IN_CUSTOMS', label: 'На таможне' },
+  { value: 'DELIVERED', label: 'Доставлено' },
 ];
 
 const selectClass =
@@ -23,6 +20,12 @@ export function ArchiveView({
   parcels: ParcelResponse[];
   recipientNameById: Record<string, string>;
 }) {
+  // В архив попадают только терминальные посылки: доставленные и утерянные.
+  const archived = useMemo(
+    () => parcels.filter((p) => p.status === 'DELIVERED' || p.status === 'EXCEPTION'),
+    [parcels],
+  );
+
   const [status, setStatus] = useState('');
   const [recipient, setRecipient] = useState('');
   const [store, setStore] = useState('');
@@ -30,20 +33,20 @@ export function ArchiveView({
 
   const recipientOptions = useMemo(
     () =>
-      [...new Set(parcels.map((p) => p.recipientProfileId))].map((id) => ({
+      [...new Set(archived.map((p) => p.recipientProfileId))].map((id) => ({
         id,
         name: recipientNameById[id] ?? 'Получатель',
       })),
-    [parcels, recipientNameById],
+    [archived, recipientNameById],
   );
 
   const storeOptions = useMemo(
-    () => [...new Set(parcels.map((p) => p.store).filter((s): s is string => Boolean(s)))],
-    [parcels],
+    () => [...new Set(archived.map((p) => p.store).filter((s): s is string => Boolean(s)))],
+    [archived],
   );
 
   const query = track.trim().toLowerCase();
-  const filtered = parcels.filter(
+  const filtered = archived.filter(
     (p) =>
       (!status || p.status === status) &&
       (!recipient || p.recipientProfileId === recipient) &&
@@ -53,14 +56,27 @@ export function ArchiveView({
 
   return (
     <div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Статус" className={selectClass}>
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        {TABS.map((tab) => {
+          const active = status === tab.value;
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setStatus(tab.value)}
+              className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
+                active
+                  ? 'border-brand bg-brand text-white'
+                  : 'border-hairline bg-surface text-muted hover:bg-canvas hover:text-ink'
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
         <select value={recipient} onChange={(e) => setRecipient(e.target.value)} aria-label="Получатель" className={selectClass}>
           <option value="">Все получатели</option>
           {recipientOptions.map((r) => (

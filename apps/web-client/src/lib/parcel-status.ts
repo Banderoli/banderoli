@@ -9,5 +9,5 @@ export const PARCEL_STATUS_META: Record<ParcelStatus, { label: string; tone: Sta
   CUSTOMS_CLEARED: { label: 'Очищено', tone: 'transit' },
   DELIVERED: { label: 'Доставлено', tone: 'delivered' },
   RETURNED: { label: 'Возврат', tone: 'neutral' },
-  EXCEPTION: { label: 'Проблема', tone: 'customs' },
+  EXCEPTION: { label: 'Утеряно', tone: 'neutral' },
 };

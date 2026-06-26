@@ -1,14 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { ChevronDown, RotateCcw } from 'lucide-react';
 import type { ParcelResponse } from '@banderoli/contracts';
 import { PARCEL_STATUS_META, type StatusTone } from '@/lib/parcel-status';
 import { formatGel, formatShortDate, formatUsd } from '@/lib/format';
 import { restoreParcelAction } from '@/app/parcel-actions';
-
-const TERMINAL: ReadonlyArray<string> = ['DELIVERED', 'RETURNED', 'EXCEPTION'];
 
 const BADGE_TONE: Record<StatusTone, string> = {
   transit: 'bg-brand-soft text-brand-dark',
@@ -35,7 +32,6 @@ export function ArchiveCard({
 }) {
   const [open, setOpen] = useState(false);
   const meta = PARCEL_STATUS_META[parcel.status];
-  const canRestore = TERMINAL.includes(parcel.status);
 
   return (
     <div className="rounded-xl border border-hairline bg-surface">
@@ -84,25 +80,17 @@ export function ArchiveCard({
             <Field label="Статус" value={meta.label} />
           </div>
 
-          <div className="mt-3 flex items-center gap-2">
-            <Link
-              href={`/dashboard/parcels/${parcel.id}`}
-              className="rounded-md border border-hairline px-3 py-1.5 text-xs transition hover:bg-canvas"
-            >
-              Детали
-            </Link>
-            {canRestore ? (
-              <form action={restoreParcelAction}>
-                <input type="hidden" name="id" value={parcel.id} />
-                <button
-                  type="submit"
-                  className="flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-dark"
-                >
-                  <RotateCcw size={13} aria-hidden />
-                  Восстановить
-                </button>
-              </form>
-            ) : null}
+          <div className="mt-3">
+            <form action={restoreParcelAction}>
+              <input type="hidden" name="id" value={parcel.id} />
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-dark"
+              >
+                <RotateCcw size={14} aria-hidden />
+                Восстановить
+              </button>
+            </form>
           </div>
         </div>
       ) : null}

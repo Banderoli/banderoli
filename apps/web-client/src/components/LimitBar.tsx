@@ -1,13 +1,16 @@
 import type { ReactNode } from 'react';
 
+// Плавный переход от фиолетового (мало) к красному (у лимита).
+function lerp(a: number, b: number, t: number): number {
+  return Math.round(a + (b - a) * t);
+}
+
 function toneColor(ratio: number): string {
-  if (ratio >= 0.85) {
-    return 'var(--color-high)';
-  }
-  if (ratio >= 0.6) {
-    return 'var(--color-medium)';
-  }
-  return 'var(--color-brand)';
+  const t = Math.min(1, Math.max(0, ratio));
+  const r = lerp(124, 220, t);
+  const g = lerp(58, 38, t);
+  const b = lerp(237, 38, t);
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 export function LimitBar({

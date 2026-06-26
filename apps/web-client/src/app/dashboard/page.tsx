@@ -2,11 +2,10 @@ import { Info, Receipt, Weight } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { MetricCard } from '@/components/MetricCard';
-import { ParcelRow } from '@/components/ParcelRow';
+import { DashboardParcels } from '@/components/DashboardParcels';
 import { ExposureGauge } from '@/components/ExposureGauge';
 import { LimitBar } from '@/components/LimitBar';
 import { AddParcelForm } from '@/components/AddParcelForm';
-import { RecipientSwitcher } from '@/components/RecipientSwitcher';
 import { loadDashboard } from '@/lib/dashboard';
 import { listCarriers, listStores } from '@/lib/api';
 import { formatGel, formatUsd } from '@/lib/format';
@@ -41,15 +40,7 @@ export default async function DashboardPage({
         ) : null}
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-medium">Мои посылки</h1>
-            {data.recipients.length > 1 ? (
-              <RecipientSwitcher
-                recipients={data.recipients}
-                selectedId={data.selectedRecipientId}
-              />
-            ) : null}
-          </div>
+          <h1 className="text-lg font-medium">Мои посылки</h1>
           <AddParcelForm
             recipients={data.recipients}
             selectedRecipientId={data.selectedRecipientId}
@@ -76,15 +67,13 @@ export default async function DashboardPage({
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
           <section className="rounded-xl border border-hairline bg-surface p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-medium">Активные отправления</h2>
-              <span className="text-xs text-muted">сортировка: ETA</span>
-            </div>
-            {data.parcels.length > 0 ? (
-              data.parcels.map((parcel) => <ParcelRow key={parcel.id} parcel={parcel} />)
-            ) : (
-              <p className="py-6 text-center text-sm text-muted">Пока нет отправлений</p>
-            )}
+            <h2 className="mb-3 text-sm font-medium">Активные отправления</h2>
+            <DashboardParcels
+              parcels={data.parcels}
+              recipients={data.recipients}
+              selectedRecipientId={data.selectedRecipientId}
+              recipientName={data.recipientName}
+            />
           </section>
 
           <section className="rounded-xl border border-hairline bg-surface p-4">
