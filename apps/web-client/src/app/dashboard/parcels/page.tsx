@@ -1,28 +1,29 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { listParcels } from '@/lib/api';
-import { ParcelRow } from '@/components/ParcelRow';
+import { listParcels, listRecipients } from '@/lib/api';
+import { ArchiveView } from '@/components/ArchiveView';
 
-export default async function ParcelsPage() {
+export default async function ArchivePage() {
   const session = await auth();
   if (!session?.user) {
     redirect('/login');
   }
 
-  const parcels = await listParcels(session.user.id).catch(() => []);
+  const userId = session.user.id;
+  const [parcels, recipients] = await Promise.all([
+    listParcels(userId).catch(() => []),
+    listRecipients(userId).catch(() => []),
+  ]);
+  const recipientNameById = Object.fromEntries(recipients.map((r) => [r.id, r.name]));
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="text-lg font-medium">Все посылки</h1>
-      <p className="mt-1 text-sm text-muted">Всего отправлений: {parcels.length}</p>
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
+      <h1 className="text-lg font-medium">Архив</h1>
+      <p className="mt-1 mb-6 text-sm text-muted">
+        Все отправления: {parcels.length}. Фильтруйте по статусу, получателю, магазину или трек-коду.
+      </p>
 
-      <div className="mt-6 rounded-xl border border-hairline bg-surface p-4">
-        {parcels.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted">Пока нет посылок</p>
-        ) : (
-          parcels.map((parcel) => <ParcelRow key={parcel.id} parcel={parcel} />)
-        )}
-      </div>
+      <ArchiveView parcels={parcels} recipientNameById={recipientNameById} />
     </div>
   );
 }

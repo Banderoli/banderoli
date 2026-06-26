@@ -310,6 +310,26 @@ export async function createParcel(
   return serializeParcel(parcel);
 }
 
+export async function updateParcelStatus(
+  userId: string,
+  parcelId: string,
+  status: ParcelResponse['status'],
+): Promise<void> {
+  const parcel = await prisma.parcel.findFirst({
+    where: { id: parcelId, recipientProfile: { userId } },
+    select: { id: true, recipientProfileId: true },
+  });
+  if (!parcel) {
+    throw new Error('Посылка не найдена');
+  }
+
+  await prisma.parcel.update({
+    where: { id: parcelId },
+    data: { status, deliveredAt: status === 'DELIVERED' ? undefined : null },
+  });
+  await recomputeExposure(parcel.recipientProfileId);
+}
+
 // ─── Экспозиция ───────────────────────────────────────────────────────────────
 
 export async function getExposure(

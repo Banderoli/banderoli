@@ -2,7 +2,13 @@
 
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
-import { createParcel, createRecipient, listRecipients, type CreateParcelBody } from '@/lib/api';
+import {
+  createParcel,
+  createRecipient,
+  listRecipients,
+  updateParcelStatus,
+  type CreateParcelBody,
+} from '@/lib/api';
 
 export interface ParcelFormState {
   ok?: boolean;
@@ -68,4 +74,18 @@ export async function createParcelAction(
 
   revalidatePath('/dashboard');
   return { ok: true };
+}
+
+export async function restoreParcelAction(formData: FormData): Promise<void> {
+  const session = await auth();
+  if (!session?.user) {
+    return;
+  }
+  const id = String(formData.get('id') ?? '');
+  if (!id) {
+    return;
+  }
+  await updateParcelStatus(session.user.id, id, 'IN_TRANSIT');
+  revalidatePath('/dashboard/parcels');
+  revalidatePath('/dashboard');
 }

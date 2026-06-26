@@ -28,7 +28,7 @@ const SECTIONS: Array<{ title?: string; items: NavEntry[] }> = [
   {
     items: [
       { label: 'Дашборд', icon: LayoutDashboard, href: '/dashboard' },
-      { label: 'Посылки', icon: PackageOpen, href: '/dashboard/parcels' },
+      { label: 'Архив', icon: PackageOpen, href: '/dashboard/parcels' },
       { label: 'Аналитика', icon: BarChart3, href: '/dashboard/analytics' },
       { label: 'ИИ функции', icon: Sparkles, href: '/dashboard/ai' },
       { label: 'Настройки', icon: Settings, href: '/dashboard/settings' },
