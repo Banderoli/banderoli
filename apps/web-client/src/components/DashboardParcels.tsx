@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { CarrierResponse, ParcelResponse, StoreResponse } from '@banderoli/contracts';
+import type { RecipientOption } from '@/lib/mock-data';
 import { DashboardParcelCard } from './DashboardParcelCard';
 
 const selectClass =
@@ -9,12 +10,12 @@ const selectClass =
 
 export function DashboardParcels({
   parcels,
-  recipientNameById,
+  recipients,
   stores,
   carriers,
 }: {
   parcels: ParcelResponse[];
-  recipientNameById: Record<string, string>;
+  recipients: RecipientOption[];
   stores: StoreResponse[];
   carriers: CarrierResponse[];
 }) {
@@ -29,13 +30,23 @@ export function DashboardParcels({
     [parcels],
   );
 
-  // Получатели, у которых есть активные посылки.
-  const recipientOptions = useMemo(() => {
-    const ids = [...new Set(active.map((p) => p.recipientProfileId))];
-    return ids
-      .map((id) => ({ id, name: recipientNameById[id] ?? 'Получатель' }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-  }, [active, recipientNameById]);
+  const recipientNameById = useMemo(
+    () => Object.fromEntries(recipients.map((r) => [r.id, r.name])),
+    [recipients],
+  );
+
+  // Все получатели пользователя (даже без активных посылок) + счётчик их посылок.
+  const recipientOptions = useMemo(
+    () =>
+      recipients
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          count: active.filter((p) => p.recipientProfileId === r.id).length,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ru')),
+    [recipients, active],
+  );
 
   // Магазины/службы: все сохранённые у пользователя + встречающиеся в посылках.
   const storeOptions = useMemo(() => {
@@ -66,17 +77,17 @@ export function DashboardParcels({
   return (
     <div>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {recipientOptions.length > 1 ? (
+        {recipients.length > 1 ? (
           <select
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
             aria-label="Получатель"
             className={selectClass}
           >
-            <option value="">Все получатели</option>
+            <option value="">Все посылки ({active.length})</option>
             {recipientOptions.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}
+                {r.name} ({r.count})
               </option>
             ))}
           </select>

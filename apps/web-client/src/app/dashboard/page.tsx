@@ -32,7 +32,6 @@ export default async function DashboardPage({
   const { exposure } = data;
   // Список на дашборде показывает посылки всех получателей; в демо-режиме — мок-данные.
   const parcelsForList = demo ? data.parcels : allParcels;
-  const recipientNameById = Object.fromEntries(data.recipients.map((r) => [r.id, r.name]));
   const atRiskRecipients = recipientsExposure.filter((r) => r.ratio >= 0.85 || r.jointArrival);
   const exposureAccent =
     exposure.level === 'HIGH' ? 'high' : exposure.level === 'MEDIUM' ? 'medium' : undefined;
@@ -77,7 +76,7 @@ export default async function DashboardPage({
             <h2 className="mb-3 text-sm font-medium">Активные отправления</h2>
             <DashboardParcels
               parcels={parcelsForList}
-              recipientNameById={recipientNameById}
+              recipients={data.recipients}
               stores={stores}
               carriers={carriers}
             />
