@@ -6,8 +6,9 @@ import { DashboardParcels } from '@/components/DashboardParcels';
 import { ExposureGauge } from '@/components/ExposureGauge';
 import { LimitBar } from '@/components/LimitBar';
 import { AddParcelForm } from '@/components/AddParcelForm';
+import { RecipientSwitcher } from '@/components/RecipientSwitcher';
 import { loadDashboard } from '@/lib/dashboard';
-import { listCarriers, listStores, loadRecipientsExposure } from '@/lib/api';
+import { listCarriers, listParcels, listStores, loadRecipientsExposure } from '@/lib/api';
 import { formatGel, formatUsd } from '@/lib/format';
 
 export default async function DashboardPage({
@@ -21,13 +22,17 @@ export default async function DashboardPage({
   }
 
   const { recipient } = await searchParams;
-  const [{ data, demo }, stores, carriers, recipientsExposure] = await Promise.all([
+  const [{ data, demo }, allParcels, stores, carriers, recipientsExposure] = await Promise.all([
     loadDashboard(session.user.id, recipient),
+    listParcels(session.user.id),
     listStores(session.user.id),
     listCarriers(session.user.id),
     loadRecipientsExposure(session.user.id),
   ]);
   const { exposure } = data;
+  // Список на дашборде показывает посылки всех получателей; в демо-режиме — мок-данные.
+  const parcelsForList = demo ? data.parcels : allParcels;
+  const recipientNameById = Object.fromEntries(data.recipients.map((r) => [r.id, r.name]));
   const atRiskRecipients = recipientsExposure.filter((r) => r.ratio >= 0.85 || r.jointArrival);
   const exposureAccent =
     exposure.level === 'HIGH' ? 'high' : exposure.level === 'MEDIUM' ? 'medium' : undefined;
@@ -71,15 +76,20 @@ export default async function DashboardPage({
           <section className="rounded-xl border border-hairline bg-surface p-4">
             <h2 className="mb-3 text-sm font-medium">Активные отправления</h2>
             <DashboardParcels
-              parcels={data.parcels}
-              recipients={data.recipients}
-              selectedRecipientId={data.selectedRecipientId}
-              recipientName={data.recipientName}
+              parcels={parcelsForList}
+              recipientNameById={recipientNameById}
+              stores={stores}
+              carriers={carriers}
             />
           </section>
 
           <section className="rounded-xl border border-hairline bg-surface p-4">
-            <h2 className="mb-3 text-sm font-medium">Экспозиция · {data.recipientName}</h2>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-medium">Экспозиция · {data.recipientName}</h2>
+              {data.recipients.length > 1 ? (
+                <RecipientSwitcher recipients={data.recipients} selectedId={data.selectedRecipientId} />
+              ) : null}
+            </div>
 
             <ExposureGauge score={exposure.score} level={exposure.level} />
 

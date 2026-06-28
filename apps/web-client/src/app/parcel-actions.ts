@@ -11,7 +11,7 @@ import {
   updateParcelStatus,
   type CreateParcelBody,
 } from '@/lib/api';
-import { checkFlightStatus } from '@/lib/aviationstack';
+import { checkParcelTracking } from '@/lib/ship24';
 
 export interface ParcelFormState {
   ok?: boolean;
@@ -160,19 +160,19 @@ export async function updateParcelAction(
   return { ok: true };
 }
 
-export interface FlightCheckState {
+export interface TrackingCheckState {
   text?: string;
 }
 
-export async function checkFlightStatusAction(
-  _prev: FlightCheckState,
+export async function checkTrackingAction(
+  _prev: TrackingCheckState,
   formData: FormData,
-): Promise<FlightCheckState> {
+): Promise<TrackingCheckState> {
   const session = await auth();
   if (!session?.user) {
     return { text: 'Сессия истекла' };
   }
-  const flight = String(formData.get('flight') ?? '');
-  const result = await checkFlightStatus(flight);
+  const tracking = String(formData.get('tracking') ?? '');
+  const result = await checkParcelTracking(tracking);
   return { text: result.text };
 }

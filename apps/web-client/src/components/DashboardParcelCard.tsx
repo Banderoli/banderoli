@@ -1,15 +1,15 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { Check, ChevronDown, Plane, Trash2, XCircle } from 'lucide-react';
+import { Check, ChevronDown, Trash2, Truck, XCircle } from 'lucide-react';
 import type { ParcelResponse } from '@banderoli/contracts';
 import { PARCEL_STATUS_META, type StatusTone } from '@/lib/parcel-status';
 import { formatGel, formatShortDate, formatUsd } from '@/lib/format';
 import {
-  checkFlightStatusAction,
+  checkTrackingAction,
   deleteParcelAction,
   setParcelStatusAction,
-  type FlightCheckState,
+  type TrackingCheckState,
 } from '@/app/parcel-actions';
 import { EditParcelForm } from './EditParcelForm';
 
@@ -20,7 +20,7 @@ const BADGE_TONE: Record<StatusTone, string> = {
   neutral: 'bg-hairline text-muted',
 };
 
-const FLIGHT_INIT: FlightCheckState = {};
+const TRACKING_INIT: TrackingCheckState = {};
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -39,7 +39,7 @@ export function DashboardParcelCard({
   recipientName: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [flight, flightAction, flightPending] = useActionState(checkFlightStatusAction, FLIGHT_INIT);
+  const [track, trackAction, trackPending] = useActionState(checkTrackingAction, TRACKING_INIT);
   const meta = PARCEL_STATUS_META[parcel.status];
 
   const eta =
@@ -101,11 +101,11 @@ export function DashboardParcelCard({
               </button>
             </form>
 
-            <form action={flightAction}>
-              <input type="hidden" name="flight" value={parcel.carrier ?? parcel.trackingNumber} />
-              <button type="submit" disabled={flightPending} className="flex items-center gap-1.5 rounded-md bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand-dark transition hover:opacity-80 disabled:opacity-60">
-                <Plane size={13} aria-hidden />
-                {flightPending ? 'Проверяем…' : 'Проверить статус'}
+            <form action={trackAction}>
+              <input type="hidden" name="tracking" value={parcel.trackingNumber} />
+              <button type="submit" disabled={trackPending} className="flex items-center gap-1.5 rounded-md bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand-dark transition hover:opacity-80 disabled:opacity-60">
+                <Truck size={13} aria-hidden />
+                {trackPending ? 'Проверяем…' : 'Проверить статус'}
               </button>
             </form>
 
@@ -125,7 +125,7 @@ export function DashboardParcelCard({
             </form>
           </div>
 
-          {flight.text ? <p className="mt-2 text-xs text-muted">✈ {flight.text}</p> : null}
+          {track.text ? <p className="mt-2 text-xs text-muted">📦 {track.text}</p> : null}
         </div>
       ) : null}
     </div>
