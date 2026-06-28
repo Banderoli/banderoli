@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { CarrierResponse, StoreResponse } from '@banderoli/contracts';
 import { createParcelAction, type ParcelFormState } from '@/app/parcel-actions';
-import type { RecipientOption } from '@/lib/mock-data';
+import type { RecipientExposure } from '@/lib/api';
 
 const INITIAL: ParcelFormState = {};
 const inputClass =
@@ -16,7 +16,7 @@ export function AddParcelForm({
   stores,
   carriers,
 }: {
-  recipients: RecipientOption[];
+  recipients: RecipientExposure[];
   selectedRecipientId: string;
   stores: StoreResponse[];
   carriers: CarrierResponse[];
@@ -65,9 +65,11 @@ export function AddParcelForm({
             </div>
 
             <form ref={formRef} action={formAction} className="space-y-2.5">
-              {recipients.length > 1 ? (
+              {recipients.length > 0 ? (
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Получатель</span>
+                  <span className="mb-1 block text-xs text-muted">
+                    Получатель (на кого выписать)
+                  </span>
                   <select
                     name="recipientProfileId"
                     defaultValue={selectedRecipientId}
@@ -75,13 +77,14 @@ export function AddParcelForm({
                   >
                     {recipients.map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.name}
+                        {r.name} · {Math.round(r.usedGel)}/{r.limitGel} GEL
+                        {r.exceeded ? ' (превышен)' : r.ratio >= 0.85 ? ' (близко)' : ''}
                       </option>
                     ))}
                   </select>
                 </label>
               ) : (
-                <input type="hidden" name="recipientProfileId" value={recipients[0]?.id ?? ''} />
+                <input type="hidden" name="recipientProfileId" value="" />
               )}
 
               <input name="trackingNumber" required placeholder="Трек-номер *" className={inputClass} />

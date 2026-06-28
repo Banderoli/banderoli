@@ -1,4 +1,4 @@
-import { Info, Receipt, Weight } from 'lucide-react';
+import { Info, Receipt, Users, Weight } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { MetricCard } from '@/components/MetricCard';
@@ -7,7 +7,7 @@ import { ExposureGauge } from '@/components/ExposureGauge';
 import { LimitBar } from '@/components/LimitBar';
 import { AddParcelForm } from '@/components/AddParcelForm';
 import { loadDashboard } from '@/lib/dashboard';
-import { listCarriers, listStores } from '@/lib/api';
+import { listCarriers, listStores, loadRecipientsExposure } from '@/lib/api';
 import { formatGel, formatUsd } from '@/lib/format';
 
 export default async function DashboardPage({
@@ -21,12 +21,14 @@ export default async function DashboardPage({
   }
 
   const { recipient } = await searchParams;
-  const [{ data, demo }, stores, carriers] = await Promise.all([
+  const [{ data, demo }, stores, carriers, recipientsExposure] = await Promise.all([
     loadDashboard(session.user.id, recipient),
     listStores(session.user.id),
     listCarriers(session.user.id),
+    loadRecipientsExposure(session.user.id),
   ]);
   const { exposure } = data;
+  const atRiskRecipients = recipientsExposure.filter((r) => r.ratio >= 0.85 || r.jointArrival);
   const exposureAccent =
     exposure.level === 'HIGH' ? 'high' : exposure.level === 'MEDIUM' ? 'medium' : undefined;
 
@@ -42,7 +44,7 @@ export default async function DashboardPage({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-lg font-medium">Мои посылки</h1>
           <AddParcelForm
-            recipients={data.recipients}
+            recipients={recipientsExposure}
             selectedRecipientId={data.selectedRecipientId}
             stores={stores}
             carriers={carriers}
@@ -107,6 +109,31 @@ export default async function DashboardPage({
                 <span>{alert.message}</span>
               </div>
             ))}
+
+            {atRiskRecipients.length > 0 ? (
+              <div className="mt-4 rounded-md bg-medium-soft p-3 text-xs leading-relaxed text-medium">
+                <div className="mb-1 flex items-center gap-1.5 font-medium">
+                  <Users size={13} aria-hidden />
+                  Получатели у лимита
+                </div>
+                <ul className="space-y-0.5">
+                  {atRiskRecipients.map((r) => (
+                    <li key={r.id}>
+                      {r.name}: {Math.round(r.usedGel)}/{r.limitGel} GEL
+                      {r.exceeded
+                        ? ' — лимит превышен'
+                        : r.ratio >= 0.85
+                          ? ' — близко к лимиту'
+                          : ''}
+                      {r.jointArrival ? ' · возможно совпадение прибытия' : ''}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-muted">
+                  Новую посылку лучше оформить на получателя с запасом по лимиту.
+                </p>
+              </div>
+            ) : null}
           </section>
         </div>
     </main>

@@ -420,6 +420,53 @@ export async function getExposure(
   return calculateExposure(recipientId, inputs);
 }
 
+export interface RecipientExposure {
+  id: string;
+  name: string;
+  usedGel: number;
+  limitGel: number;
+  ratio: number;
+  level: ExposureResult['level'];
+  score: number;
+  jointArrival: boolean;
+  exceeded: boolean;
+}
+
+// Экспозиция по каждому получателю — для подсказок «на кого выписывать».
+export async function loadRecipientsExposure(userId: string): Promise<RecipientExposure[]> {
+  const recipients = await prisma.recipientProfile.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const result: RecipientExposure[] = [];
+  for (const recipient of recipients) {
+    const parcels = await prisma.parcel.findMany({
+      where: { recipientProfileId: recipient.id, status: { in: ACTIVE_STATUSES } },
+    });
+    const inputs: ParcelExposureInput[] = parcels.map((p) => ({
+      valueGel: toNumberOr(p.declaredValueGel, 0),
+      weightKg: toNumberOr(p.weightKg, 0),
+      quantity: p.quantity,
+      estimatedArrival: p.estimatedArrival,
+    }));
+    const exposure = calculateExposure(recipient.id, inputs);
+    result.push({
+      id: recipient.id,
+      name: recipient.name,
+      usedGel: exposure.totalValueGel,
+      limitGel: exposure.limitGel,
+      ratio: exposure.limitGel > 0 ? exposure.totalValueGel / exposure.limitGel : 0,
+      level: exposure.level,
+      score: exposure.score,
+      jointArrival: exposure.alerts.some((a) => a.code === 'JOINT_ARRIVAL'),
+      exceeded: exposure.totalValueGel > exposure.limitGel,
+    });
+  }
+
+  return result;
+}
+
 // ─── ИИ-функции (мок-движок + дневная квота) ─────────────────────────────────
 
 function aiToday(): string {
