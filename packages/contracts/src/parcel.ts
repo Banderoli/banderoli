@@ -21,6 +21,8 @@ export const CreateParcelSchema = z.object({
   declaredValueUsd: z.number().positive().max(100_000).optional(),
   weightKg: z.number().positive().max(1000).optional(),
   quantity: z.number().int().positive().max(1000).optional().default(1),
+  purchasedAt: z.string().optional(),
+  estimatedArrival: z.string().optional(),
 });
 
 export type CreateParcelDto = z.infer<typeof CreateParcelSchema>;
@@ -44,6 +46,7 @@ export const ParcelResponseSchema = z.object({
   quantity: z.number().int().positive(),
   status: ParcelStatusSchema,
   currentExposureScore: z.number().int().min(0).max(100),
+  purchasedAt: z.string().datetime().nullable(),
   estimatedArrival: z.string().datetime().nullable(),
   deliveredAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),

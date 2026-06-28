@@ -173,6 +173,7 @@ model Parcel {
   quantity             Int           @default(1)
   status               ParcelStatus  @default(PENDING)
   currentExposureScore Int           @default(0)
+  purchasedAt          DateTime?
   estimatedArrival     DateTime?
   shippedAt            DateTime?
   deliveredAt          DateTime?

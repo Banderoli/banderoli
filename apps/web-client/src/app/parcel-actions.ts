@@ -68,6 +68,8 @@ export async function createParcelAction(
       declaredValueUsd: optionalNumber(formData.get('declaredValueUsd')),
       weightKg: optionalNumber(formData.get('weightKg')),
       quantity: optionalNumber(formData.get('quantity')),
+      purchasedAt: optionalString(formData.get('purchasedAt')),
+      estimatedArrival: optionalString(formData.get('estimatedArrival')),
     };
 
     await createParcel(userId, body);
@@ -146,6 +148,8 @@ export async function updateParcelAction(
       declaredValueUsd: optionalNumber(formData.get('declaredValueUsd')) ?? null,
       weightKg: optionalNumber(formData.get('weightKg')) ?? null,
       quantity: optionalNumber(formData.get('quantity')),
+      purchasedAt: optionalString(formData.get('purchasedAt')) ?? null,
+      estimatedArrival: optionalString(formData.get('estimatedArrival')) ?? null,
     });
   } catch {
     return { error: 'Не удалось сохранить изменения' };

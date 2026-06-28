@@ -119,6 +119,17 @@ export function AddParcelForm({
                 <input name="quantity" type="number" min="1" step="1" placeholder="шт" className={inputClass} />
               </div>
 
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs text-muted">Дата покупки</span>
+                  <input name="purchasedAt" type="date" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-muted">Ожидаемая доставка</span>
+                  <input name="estimatedArrival" type="date" className={inputClass} />
+                </label>
+              </div>
+
               {state.error ? <p className="text-xs text-high">{state.error}</p> : null}
 
               <div className="flex justify-end gap-2 pt-1">

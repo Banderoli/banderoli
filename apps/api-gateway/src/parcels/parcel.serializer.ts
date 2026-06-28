@@ -16,6 +16,7 @@ export function serializeParcel(parcel: Parcel): ParcelResponse {
     quantity: parcel.quantity,
     status: parcel.status,
     currentExposureScore: parcel.currentExposureScore,
+    purchasedAt: parcel.purchasedAt ? parcel.purchasedAt.toISOString() : null,
     estimatedArrival: parcel.estimatedArrival
       ? parcel.estimatedArrival.toISOString()
       : null,

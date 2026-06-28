@@ -23,13 +23,19 @@ export function DashboardParcels({
   const [store, setStore] = useState('');
   const [track, setTrack] = useState('');
 
-  const storeOptions = useMemo(
-    () => [...new Set(parcels.map((p) => p.store).filter((s): s is string => Boolean(s)))],
+  // Терминальные посылки (доставлено/утеряно) живут в Архиве — на дашборде их нет.
+  const active = useMemo(
+    () => parcels.filter((p) => p.status !== 'DELIVERED' && p.status !== 'EXCEPTION'),
     [parcels],
   );
 
+  const storeOptions = useMemo(
+    () => [...new Set(active.map((p) => p.store).filter((s): s is string => Boolean(s)))],
+    [active],
+  );
+
   const query = track.trim().toLowerCase();
-  const filtered = parcels.filter(
+  const filtered = active.filter(
     (p) =>
       (!store || p.store === store) &&
       (!query || p.trackingNumber.toLowerCase().includes(query)),

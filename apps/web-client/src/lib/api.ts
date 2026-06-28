@@ -77,6 +77,7 @@ function serializeParcel(p: Parcel): ParcelResponse {
     quantity: p.quantity,
     status: p.status,
     currentExposureScore: p.currentExposureScore,
+    purchasedAt: p.purchasedAt ? p.purchasedAt.toISOString() : null,
     estimatedArrival: p.estimatedArrival ? p.estimatedArrival.toISOString() : null,
     deliveredAt: p.deliveredAt ? p.deliveredAt.toISOString() : null,
     createdAt: p.createdAt.toISOString(),
@@ -232,6 +233,8 @@ export interface CreateParcelBody {
   declaredValueUsd?: number;
   weightKg?: number;
   quantity?: number;
+  purchasedAt?: string;
+  estimatedArrival?: string;
 }
 
 export async function listParcels(
@@ -289,7 +292,11 @@ export async function createParcel(
   const declaredValueUsd = body.declaredValueUsd ?? null;
   const declaredValueGel =
     declaredValueUsd === null ? null : round2(declaredValueUsd * USD_TO_GEL_RATE);
-  const eta = estimateEta({ carrier: body.carrier ?? null, shippedAt: null });
+  // Ожидаемую доставку движок экспозиции группирует по дням — берём ручную дату,
+  // если указана; иначе оцениваем по перевозчику.
+  const estimatedArrival = body.estimatedArrival
+    ? new Date(body.estimatedArrival)
+    : estimateEta({ carrier: body.carrier ?? null, shippedAt: null }).estimatedArrival;
 
   const parcel = await prisma.parcel.create({
     data: {
@@ -302,7 +309,8 @@ export async function createParcel(
       declaredValueGel,
       weightKg: body.weightKg ?? null,
       quantity: body.quantity ?? 1,
-      estimatedArrival: eta.estimatedArrival,
+      purchasedAt: body.purchasedAt ? new Date(body.purchasedAt) : null,
+      estimatedArrival,
     },
   });
 
@@ -350,6 +358,8 @@ export interface UpdateParcelBody {
   declaredValueUsd?: number | null;
   weightKg?: number | null;
   quantity?: number;
+  purchasedAt?: string | null;
+  estimatedArrival?: string | null;
 }
 
 export async function updateParcel(
@@ -372,6 +382,12 @@ export async function updateParcel(
   if (body.description !== undefined) data.description = body.description;
   if (body.weightKg !== undefined) data.weightKg = body.weightKg;
   if (body.quantity !== undefined) data.quantity = body.quantity;
+  if (body.purchasedAt !== undefined) {
+    data.purchasedAt = body.purchasedAt ? new Date(body.purchasedAt) : null;
+  }
+  if (body.estimatedArrival !== undefined) {
+    data.estimatedArrival = body.estimatedArrival ? new Date(body.estimatedArrival) : null;
+  }
   if (body.declaredValueUsd !== undefined) {
     data.declaredValueUsd = body.declaredValueUsd;
     data.declaredValueGel =
