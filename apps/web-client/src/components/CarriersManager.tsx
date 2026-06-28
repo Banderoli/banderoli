@@ -37,7 +37,7 @@ export function CarriersManager({ carriers }: { carriers: CarrierResponse[] }) {
           carriers.map((c) => (
             <li
               key={c.id}
-              className="flex items-center gap-2 rounded-lg border border-hairline bg-surface px-3 py-2"
+              className="flex items-center gap-2 rounded-lg border border-hairline bg-surface shadow-card px-3 py-2"
             >
               <div className="flex-1 text-sm font-medium">{c.name}</div>
               <form action={deleteCarrierAction}>

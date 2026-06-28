@@ -16,7 +16,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm rounded-xl border border-hairline bg-surface p-6">
+      <div className="w-full max-w-sm rounded-xl border border-hairline bg-surface shadow-card p-6">
         <div className="mb-5">
           <Logo className="text-2xl" />
         </div>

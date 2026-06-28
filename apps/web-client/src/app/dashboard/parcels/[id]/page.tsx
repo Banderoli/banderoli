@@ -5,6 +5,7 @@ import type { ParcelStatus } from '@banderoli/contracts';
 import { auth } from '@/auth';
 import { getParcel } from '@/lib/api';
 import { PARCEL_STATUS_META } from '@/lib/parcel-status';
+import { ParcelComposition } from '@/components/ParcelComposition';
 import { formatGel, formatShortDate, formatUsd } from '@/lib/format';
 
 function statusLabel(status: string): string {
@@ -44,12 +45,15 @@ export default async function ParcelDetailPage({ params }: { params: Promise<{ i
         К списку посылок
       </Link>
 
-      <div className="rounded-xl border border-hairline bg-surface p-5">
+      <div className="rounded-xl border border-hairline bg-surface shadow-card p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-lg font-medium">{parcel.description ?? parcel.trackingNumber}</h1>
+            <h1 className="text-lg font-medium">
+              {parcel.name ?? parcel.description ?? parcel.trackingNumber ?? 'Посылка'}
+            </h1>
             <p className="mt-0.5 text-sm text-muted">
-              {parcel.carrier ?? '—'} · {parcel.trackingNumber}
+              {parcel.carrier ?? '—'}
+              {parcel.trackingNumber ? ` · ${parcel.trackingNumber}` : ''}
             </p>
           </div>
           <span className="shrink-0 rounded-full bg-canvas px-2.5 py-1 text-xs font-medium">
@@ -67,6 +71,12 @@ export default async function ParcelDetailPage({ params }: { params: Promise<{ i
           <Field label="Экспозиция" value={String(parcel.currentExposureScore)} />
         </div>
 
+        <ParcelComposition parcel={parcel} />
+
+        {parcel.description ? (
+          <p className="mt-3 rounded-md bg-canvas px-3 py-2 text-sm text-muted">{parcel.description}</p>
+        ) : null}
+
         <div className="mt-3 text-sm text-muted">
           {parcel.status === 'DELIVERED'
             ? `Вручено ${formatShortDate(parcel.deliveredAt)}`
@@ -74,7 +84,7 @@ export default async function ParcelDetailPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-hairline bg-surface p-5">
+      <div className="mt-4 rounded-xl border border-hairline bg-surface shadow-card p-5">
         <h2 className="mb-4 text-sm font-medium">История перемещений</h2>
         {parcel.events.length === 0 ? (
           <p className="text-sm text-muted">Событий пока нет</p>

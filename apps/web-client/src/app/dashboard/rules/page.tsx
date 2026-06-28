@@ -52,7 +52,7 @@ export default function RulesPage() {
         {RULES.map((rule) => {
           const Icon = rule.icon;
           return (
-            <div key={rule.title} className="rounded-xl border border-hairline bg-surface p-4">
+            <div key={rule.title} className="rounded-xl border border-hairline bg-surface shadow-card p-4">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-brand-dark">
                   <Icon size={16} aria-hidden />

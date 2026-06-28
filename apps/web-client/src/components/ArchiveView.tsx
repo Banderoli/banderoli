@@ -10,8 +10,9 @@ const TABS: Array<{ value: string; label: string }> = [
   { value: 'DELIVERED', label: 'Доставлено' },
 ];
 
-const selectClass =
-  'rounded-md border border-hairline bg-surface px-3 py-2 text-sm outline-none focus:border-brand';
+// Фирменный фиолетовый стиль полей фильтра (как на дашборде).
+const fieldClass =
+  'rounded-md border border-brand bg-brand-soft px-3 py-2 text-sm text-brand-dark shadow-card outline-none transition focus:border-brand-dark';
 
 export function ArchiveView({
   parcels,
@@ -51,7 +52,7 @@ export function ArchiveView({
       (!status || p.status === status) &&
       (!recipient || p.recipientProfileId === recipient) &&
       (!store || p.store === store) &&
-      (!query || p.trackingNumber.toLowerCase().includes(query)),
+      (!query || `${p.trackingNumber ?? ''} ${p.name ?? ''}`.toLowerCase().includes(query)),
   );
 
   return (
@@ -77,7 +78,7 @@ export function ArchiveView({
       </div>
 
       <div className="grid gap-2 sm:grid-cols-3">
-        <select value={recipient} onChange={(e) => setRecipient(e.target.value)} aria-label="Получатель" className={selectClass}>
+        <select value={recipient} onChange={(e) => setRecipient(e.target.value)} aria-label="Получатель" className={fieldClass}>
           <option value="">Все получатели</option>
           {recipientOptions.map((r) => (
             <option key={r.id} value={r.id}>
@@ -85,7 +86,7 @@ export function ArchiveView({
             </option>
           ))}
         </select>
-        <select value={store} onChange={(e) => setStore(e.target.value)} aria-label="Магазин" className={selectClass}>
+        <select value={store} onChange={(e) => setStore(e.target.value)} aria-label="Магазин" className={fieldClass}>
           <option value="">Все магазины</option>
           {storeOptions.map((s) => (
             <option key={s} value={s}>
@@ -98,7 +99,7 @@ export function ArchiveView({
           onChange={(e) => setTrack(e.target.value)}
           placeholder="Поиск по трек-коду"
           aria-label="Трек-код"
-          className="rounded-md border border-hairline bg-canvas px-3 py-2 text-sm outline-none focus:border-brand"
+          className={`${fieldClass} placeholder:text-brand-dark/50`}
         />
       </div>
 

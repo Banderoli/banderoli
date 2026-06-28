@@ -4,7 +4,7 @@ export function BarList({ title, buckets }: { title: string; buckets: AnalyticsB
   const max = Math.max(1, ...buckets.map((b) => b.valueUsd));
 
   return (
-    <div className="rounded-xl border border-hairline bg-surface p-4">
+    <div className="rounded-xl border border-hairline bg-surface shadow-card p-4">
       <h2 className="mb-3 text-sm font-medium">{title}</h2>
       {buckets.length === 0 ? (
         <p className="text-sm text-muted">Нет данных</p>

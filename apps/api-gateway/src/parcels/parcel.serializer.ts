@@ -1,17 +1,24 @@
 import { decimalToNumber } from '@banderoli/common';
 import type { ParcelDetailResponse, ParcelResponse } from '@banderoli/contracts';
-import type { LogisticsEvent, Parcel } from '@banderoli/database';
+import type { LogisticsEvent, Parcel, ParcelItem } from '@banderoli/database';
 
-export function serializeParcel(parcel: Parcel): ParcelResponse {
+export function serializeParcel(parcel: Parcel & { items?: ParcelItem[] }): ParcelResponse {
   return {
     id: parcel.id,
     recipientProfileId: parcel.recipientProfileId,
+    name: parcel.name,
     trackingNumber: parcel.trackingNumber,
     carrier: parcel.carrier,
     store: parcel.store,
     description: parcel.description,
+    items: (parcel.items ?? []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      priceUsd: decimalToNumber(item.priceUsd) ?? 0,
+    })),
     declaredValueUsd: decimalToNumber(parcel.declaredValueUsd),
     declaredValueGel: decimalToNumber(parcel.declaredValueGel),
+    shippingCostUsd: decimalToNumber(parcel.shippingCostUsd),
     weightKg: decimalToNumber(parcel.weightKg),
     quantity: parcel.quantity,
     status: parcel.status,
@@ -27,7 +34,7 @@ export function serializeParcel(parcel: Parcel): ParcelResponse {
 }
 
 export function serializeParcelDetail(
-  parcel: Parcel & { logisticsEvents: LogisticsEvent[] },
+  parcel: Parcel & { logisticsEvents: LogisticsEvent[]; items?: ParcelItem[] },
 ): ParcelDetailResponse {
   return {
     ...serializeParcel(parcel),

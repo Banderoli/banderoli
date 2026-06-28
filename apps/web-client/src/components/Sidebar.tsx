@@ -20,7 +20,7 @@ import { Logo } from './Logo';
 
 interface NavEntry {
   label: string;
-  icon: ComponentType<{ size?: number; 'aria-hidden'?: boolean }>;
+  icon: ComponentType<{ size?: number; 'aria-hidden'?: boolean; className?: string }>;
   href?: string;
 }
 
@@ -62,22 +62,24 @@ function NavContent({
       </div>
 
       {SECTIONS.map((section, i) => (
-        <div key={section.title ?? `section-${i}`}>
+        <div key={section.title ?? `section-${i}`} className="space-y-0.5 px-2">
           {section.title ? (
-            <div className="px-4 pb-1 pt-3 text-[11px] uppercase tracking-wider text-muted">
+            <div className="px-3 pb-1 pt-4 text-[11px] uppercase tracking-wider text-muted">
               {section.title}
             </div>
           ) : null}
           {section.items.map((item) => {
             const Icon = item.icon;
             const active = item.href === pathname;
-            const className = `flex items-center gap-2.5 px-4 py-2.5 text-sm ${
-              active ? 'bg-canvas font-medium text-ink' : 'text-muted'
-            }`;
+            const base =
+              'group flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition';
+            const className = active
+              ? `${base} bg-brand-soft font-medium text-brand-dark shadow-card`
+              : `${base} text-muted hover:bg-canvas hover:text-ink`;
 
             if (!item.href) {
               return (
-                <div key={item.label} className={`${className} cursor-default opacity-60`}>
+                <div key={item.label} className={`${base} cursor-default text-muted opacity-60`}>
                   <Icon size={16} aria-hidden />
                   {item.label}
                 </div>
@@ -85,13 +87,12 @@ function NavContent({
             }
 
             return (
-              <Link
-                key={item.label}
-                href={item.href}
-                onClick={onNavigate}
-                className={`${className} transition hover:text-ink`}
-              >
-                <Icon size={16} aria-hidden />
+              <Link key={item.label} href={item.href} onClick={onNavigate} className={className}>
+                <Icon
+                  size={16}
+                  aria-hidden
+                  className={active ? 'text-brand' : 'transition group-hover:text-ink'}
+                />
                 {item.label}
               </Link>
             );
@@ -137,7 +138,7 @@ export function Sidebar({ name }: { name: string }) {
   return (
     <>
       {/* Мобильная верхняя панель */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-hairline bg-surface px-4 py-3 lg:hidden">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-hairline bg-surface px-4 py-3 shadow-card lg:hidden">
         <Brand />
         <button
           type="button"
@@ -150,7 +151,7 @@ export function Sidebar({ name }: { name: string }) {
       </div>
 
       {/* Десктопный сайдбар */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-hairline bg-surface py-5 lg:flex">
+      <aside className="relative z-10 hidden w-56 shrink-0 flex-col border-r border-hairline bg-surface py-5 shadow-card lg:flex">
         <NavContent name={name} initials={initials} pathname={pathname} />
       </aside>
 
@@ -158,7 +159,7 @@ export function Sidebar({ name }: { name: string }) {
       {open ? (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="absolute left-0 top-0 flex h-full w-72 max-w-[80%] flex-col border-r border-hairline bg-surface py-5">
+          <aside className="absolute left-0 top-0 flex h-full w-72 max-w-[80%] flex-col border-r border-hairline bg-surface py-5 shadow-card-hover">
             <button
               type="button"
               aria-label="Закрыть меню"

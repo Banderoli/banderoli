@@ -10,6 +10,7 @@ import {
   updateParcel,
   updateParcelStatus,
   type CreateParcelBody,
+  type ParcelItemBody,
 } from '@/lib/api';
 import { checkParcelTracking } from '@/lib/ship24';
 
@@ -32,6 +33,41 @@ function optionalNumber(value: FormDataEntryValue | null): number | undefined {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+// Стоимость доставки/цена позиции может быть 0, поэтому отдельный неотрицательный парсер.
+function nonNegNumber(value: FormDataEntryValue | null): number | undefined {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (text.length === 0) {
+    return undefined;
+  }
+  const parsed = Number(text);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed * 100) / 100 : undefined;
+}
+
+// Позиции приходят из формы как JSON-массив [{ name, price }].
+function parseItems(value: FormDataEntryValue | null): ParcelItemBody[] {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return [];
+  }
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((raw) => {
+        const row = raw as { name?: unknown; price?: unknown; priceUsd?: unknown };
+        const name = typeof row.name === 'string' ? row.name.trim() : '';
+        const price = Number(row.price ?? row.priceUsd ?? 0);
+        return { name, priceUsd: Number.isFinite(price) && price >= 0 ? price : 0 };
+      })
+      .filter((it) => it.name.length > 0)
+      .slice(0, 50)
+      .map((it) => ({ name: it.name.slice(0, 120), priceUsd: Math.round(it.priceUsd * 100) / 100 }));
+  } catch {
+    return [];
+  }
+}
+
 export async function createParcelAction(
   _prev: ParcelFormState,
   formData: FormData,
@@ -41,9 +77,14 @@ export async function createParcelAction(
     return { error: 'Сессия истекла, войдите снова' };
   }
 
-  const trackingNumber = optionalString(formData.get('trackingNumber'));
-  if (!trackingNumber) {
-    return { error: 'Укажите трек-номер' };
+  const name = optionalString(formData.get('name'));
+  if (!name) {
+    return { error: 'Укажите название посылки' };
+  }
+
+  const items = parseItems(formData.get('itemsJson'));
+  if (items.length === 0) {
+    return { error: 'Добавьте хотя бы один товар' };
   }
 
   const userId = session.user.id;
@@ -61,13 +102,14 @@ export async function createParcelAction(
 
     const body: CreateParcelBody = {
       recipientProfileId: recipientId,
-      trackingNumber,
+      name,
+      trackingNumber: optionalString(formData.get('trackingNumber')),
       carrier: optionalString(formData.get('carrier')),
       store: optionalString(formData.get('store')),
       description: optionalString(formData.get('description')),
-      declaredValueUsd: optionalNumber(formData.get('declaredValueUsd')),
+      items,
+      shippingCostUsd: nonNegNumber(formData.get('shippingCostUsd')),
       weightKg: optionalNumber(formData.get('weightKg')),
-      quantity: optionalNumber(formData.get('quantity')),
       purchasedAt: optionalString(formData.get('purchasedAt')),
       estimatedArrival: optionalString(formData.get('estimatedArrival')),
     };
@@ -134,20 +176,21 @@ export async function updateParcelAction(
   }
 
   const id = String(formData.get('id') ?? '');
-  const trackingNumber = optionalString(formData.get('trackingNumber'));
-  if (!id || !trackingNumber) {
-    return { error: 'Укажите трек-номер' };
+  const name = optionalString(formData.get('name'));
+  if (!id || !name) {
+    return { error: 'Укажите название посылки' };
   }
 
   try {
     await updateParcel(session.user.id, id, {
-      trackingNumber,
+      name,
+      trackingNumber: optionalString(formData.get('trackingNumber')) ?? null,
       carrier: optionalString(formData.get('carrier')) ?? null,
       store: optionalString(formData.get('store')) ?? null,
       description: optionalString(formData.get('description')) ?? null,
-      declaredValueUsd: optionalNumber(formData.get('declaredValueUsd')) ?? null,
+      items: parseItems(formData.get('itemsJson')),
+      shippingCostUsd: nonNegNumber(formData.get('shippingCostUsd')) ?? null,
       weightKg: optionalNumber(formData.get('weightKg')) ?? null,
-      quantity: optionalNumber(formData.get('quantity')),
       purchasedAt: optionalString(formData.get('purchasedAt')) ?? null,
       estimatedArrival: optionalString(formData.get('estimatedArrival')) ?? null,
     });

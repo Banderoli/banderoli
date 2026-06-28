@@ -6,6 +6,7 @@ import type { ParcelResponse } from '@banderoli/contracts';
 import { PARCEL_STATUS_META, type StatusTone } from '@/lib/parcel-status';
 import { formatGel, formatShortDate, formatUsd } from '@/lib/format';
 import { restoreParcelAction } from '@/app/parcel-actions';
+import { ParcelComposition } from './ParcelComposition';
 
 const BADGE_TONE: Record<StatusTone, string> = {
   transit: 'bg-brand-soft text-brand-dark',
@@ -34,7 +35,7 @@ export function ArchiveCard({
   const meta = PARCEL_STATUS_META[parcel.status];
 
   return (
-    <div className="rounded-xl border border-hairline bg-surface">
+    <div className="rounded-xl border border-hairline bg-surface shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-card-hover">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -42,10 +43,12 @@ export function ArchiveCard({
       >
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">
-            {parcel.description ?? parcel.trackingNumber}
+            {parcel.name ?? parcel.description ?? parcel.trackingNumber ?? 'Посылка'}
           </div>
           <div className="mt-0.5 truncate text-xs text-muted">
-            {recipientName} · {parcel.trackingNumber}
+            {recipientName}
+            {parcel.trackingNumber ? ` · ${parcel.trackingNumber}` : ''}
+            {parcel.items.length > 0 ? ` · ${parcel.items.length} тов.` : ''}
           </div>
         </div>
         <span className="shrink-0 text-sm font-medium">{formatUsd(parcel.declaredValueUsd)}</span>
@@ -79,6 +82,8 @@ export function ArchiveCard({
             />
             <Field label="Статус" value={meta.label} />
           </div>
+
+          <ParcelComposition parcel={parcel} />
 
           <div className="mt-3">
             <form action={restoreParcelAction}>

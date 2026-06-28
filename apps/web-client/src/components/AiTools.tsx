@@ -49,7 +49,7 @@ export function AiTools() {
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <section className="rounded-xl border border-hairline bg-surface p-5">
+      <section className="rounded-xl border border-hairline bg-surface shadow-card p-5">
         <h2 className="flex items-center gap-2 text-sm font-medium">
           <Sparkles size={16} aria-hidden />
           Поиск отзывов на товар
@@ -134,7 +134,7 @@ export function AiTools() {
         ) : null}
       </section>
 
-      <section className="rounded-xl border border-hairline bg-surface p-5">
+      <section className="rounded-xl border border-hairline bg-surface shadow-card p-5">
         <h2 className="flex items-center gap-2 text-sm font-medium">
           <Search size={16} aria-hidden />
           Поиск товара по описанию

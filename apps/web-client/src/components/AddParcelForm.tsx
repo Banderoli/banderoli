@@ -5,6 +5,7 @@ import { Plus, X } from 'lucide-react';
 import type { CarrierResponse, StoreResponse } from '@banderoli/contracts';
 import { createParcelAction, type ParcelFormState } from '@/app/parcel-actions';
 import type { RecipientExposure } from '@/lib/api';
+import { ParcelItemsEditor } from './ParcelItemsEditor';
 
 const INITIAL: ParcelFormState = {};
 const inputClass =
@@ -49,7 +50,7 @@ export function AddParcelForm({
           onClick={() => setOpen(false)}
         >
           <div
-            className="my-auto w-full max-w-md rounded-xl border border-hairline bg-surface p-5"
+            className="my-auto w-full max-w-lg rounded-xl border border-hairline bg-surface shadow-card p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -87,8 +88,18 @@ export function AddParcelForm({
                 <input type="hidden" name="recipientProfileId" value="" />
               )}
 
-              <input name="trackingNumber" required placeholder="Трек-номер *" className={inputClass} />
-              <input name="description" placeholder="Описание (напр. Кроссовки Nike)" className={inputClass} />
+              <input name="name" required placeholder="Название посылки (напр. Алия1) *" className={inputClass} />
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs text-muted">Дата покупки</span>
+                  <input name="purchasedAt" type="date" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-muted">Ожидаемая доставка</span>
+                  <input name="estimatedArrival" type="date" className={inputClass} />
+                </label>
+              </div>
 
               {stores.length > 0 ? (
                 <select name="store" defaultValue="" className={inputClass}>
@@ -116,22 +127,26 @@ export function AddParcelForm({
                 <input name="carrier" placeholder="Перевозчик (добавьте в Настройках)" className={inputClass} />
               )}
 
-              <div className="grid grid-cols-3 gap-2">
-                <input name="declaredValueUsd" type="number" min="0" step="0.01" placeholder="$ цена" className={inputClass} />
-                <input name="weightKg" type="number" min="0" step="0.1" placeholder="кг" className={inputClass} />
-                <input name="quantity" type="number" min="1" step="1" placeholder="шт" className={inputClass} />
-              </div>
+              <ParcelItemsEditor />
 
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Дата покупки</span>
-                  <input name="purchasedAt" type="date" className={inputClass} />
+                  <span className="mb-1 block text-xs text-muted">Стоимость доставки ($)</span>
+                  <input name="shippingCostUsd" type="number" min="0" step="0.01" placeholder="$ доставка" className={inputClass} />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Ожидаемая доставка</span>
-                  <input name="estimatedArrival" type="date" className={inputClass} />
+                  <span className="mb-1 block text-xs text-muted">Вес (кг)</span>
+                  <input name="weightKg" type="number" min="0" step="0.1" placeholder="кг" className={inputClass} />
                 </label>
               </div>
+
+              <textarea name="description" rows={2} placeholder="Комментарий" className={inputClass} />
+
+              <input name="trackingNumber" placeholder="Трек-номер (если есть)" className={inputClass} />
+
+              <p className="text-xs text-muted">
+                Итог = сумма товаров + доставка. Доставка тоже входит в лимит 300 GEL.
+              </p>
 
               {state.error ? <p className="text-xs text-high">{state.error}</p> : null}
 

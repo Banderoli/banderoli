@@ -12,6 +12,7 @@ import {
   type TrackingCheckState,
 } from '@/app/parcel-actions';
 import { EditParcelForm } from './EditParcelForm';
+import { ParcelComposition } from './ParcelComposition';
 
 const BADGE_TONE: Record<StatusTone, string> = {
   transit: 'bg-brand-soft text-brand-dark',
@@ -48,7 +49,7 @@ export function DashboardParcelCard({
       : `ETA ${formatShortDate(parcel.estimatedArrival)}`;
 
   return (
-    <div className="rounded-xl border border-hairline bg-surface">
+    <div className="rounded-xl border border-hairline bg-surface shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-card-hover">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -56,7 +57,7 @@ export function DashboardParcelCard({
       >
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">
-            {parcel.description ?? parcel.trackingNumber}
+            {parcel.name ?? parcel.description ?? parcel.trackingNumber ?? 'Посылка'}
           </div>
           <div className="mt-0.5 truncate text-xs text-muted">
             {parcel.carrier ?? '—'} · {eta}
@@ -74,11 +75,17 @@ export function DashboardParcelCard({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Field label="Получатель" value={recipientName} />
             <Field label="Магазин" value={parcel.store ?? '—'} />
-            <Field label="Трек-номер" value={parcel.trackingNumber} />
+            <Field label="Трек-номер" value={parcel.trackingNumber ?? '—'} />
             <Field label="Стоимость" value={parcel.declaredValueGel !== null ? formatGel(parcel.declaredValueGel) : '—'} />
             <Field label="Вес" value={parcel.weightKg !== null ? `${parcel.weightKg} кг` : '—'} />
             <Field label="Статус" value={meta.label} />
           </div>
+
+          <ParcelComposition parcel={parcel} />
+
+          {parcel.description ? (
+            <p className="mt-3 text-xs text-muted">{parcel.description}</p>
+          ) : null}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <EditParcelForm parcel={parcel} />
@@ -101,13 +108,15 @@ export function DashboardParcelCard({
               </button>
             </form>
 
-            <form action={trackAction}>
-              <input type="hidden" name="tracking" value={parcel.trackingNumber} />
-              <button type="submit" disabled={trackPending} className="flex items-center gap-1.5 rounded-md bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand-dark transition hover:opacity-80 disabled:opacity-60">
-                <Truck size={13} aria-hidden />
-                {trackPending ? 'Проверяем…' : 'Проверить статус'}
-              </button>
-            </form>
+            {parcel.trackingNumber ? (
+              <form action={trackAction}>
+                <input type="hidden" name="tracking" value={parcel.trackingNumber} />
+                <button type="submit" disabled={trackPending} className="flex items-center gap-1.5 rounded-md bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand-dark transition hover:opacity-80 disabled:opacity-60">
+                  <Truck size={13} aria-hidden />
+                  {trackPending ? 'Проверяем…' : 'Проверить статус'}
+                </button>
+              </form>
+            ) : null}
 
             <form
               action={deleteParcelAction}

@@ -20,6 +20,7 @@ import type {
   Carrier,
   LogisticsEvent,
   Parcel,
+  ParcelItem,
   RecipientProfile,
   Store,
 } from '@banderoli/database';
@@ -63,16 +64,23 @@ function serializeRecipient(r: RecipientProfile): RecipientResponse {
   };
 }
 
-function serializeParcel(p: Parcel): ParcelResponse {
+function serializeParcel(p: Parcel & { items?: ParcelItem[] }): ParcelResponse {
   return {
     id: p.id,
     recipientProfileId: p.recipientProfileId,
+    name: p.name,
     trackingNumber: p.trackingNumber,
     carrier: p.carrier,
     store: p.store,
     description: p.description,
+    items: (p.items ?? []).map((it) => ({
+      id: it.id,
+      name: it.name,
+      priceUsd: it.priceUsd.toNumber(),
+    })),
     declaredValueUsd: toNumber(p.declaredValueUsd),
     declaredValueGel: toNumber(p.declaredValueGel),
+    shippingCostUsd: toNumber(p.shippingCostUsd),
     weightKg: toNumber(p.weightKg),
     quantity: p.quantity,
     status: p.status,
@@ -86,7 +94,7 @@ function serializeParcel(p: Parcel): ParcelResponse {
 }
 
 function serializeParcelDetail(
-  p: Parcel & { logisticsEvents: LogisticsEvent[] },
+  p: Parcel & { logisticsEvents: LogisticsEvent[]; items?: ParcelItem[] },
 ): ParcelDetailResponse {
   return {
     ...serializeParcel(p),
@@ -224,17 +232,41 @@ export async function deleteCarrier(userId: string, carrierId: string): Promise<
 
 // ─── Посылки ──────────────────────────────────────────────────────────────────
 
+export interface ParcelItemBody {
+  name: string;
+  priceUsd: number;
+}
+
 export interface CreateParcelBody {
   recipientProfileId: string;
-  trackingNumber: string;
+  name?: string;
+  trackingNumber?: string;
   carrier?: string;
   store?: string;
   description?: string;
+  items?: ParcelItemBody[];
+  shippingCostUsd?: number;
   declaredValueUsd?: number;
   weightKg?: number;
   quantity?: number;
   purchasedAt?: string;
   estimatedArrival?: string;
+}
+
+// Итог посылки = Σ цен позиций (или legacy-цена) + стоимость доставки.
+// Доставка тоже входит в таможенный лимит, поэтому добавляется к declaredValue.
+function computeDeclaredUsd(
+  items: ParcelItemBody[],
+  shippingCostUsd: number | null,
+  legacyDeclaredUsd: number | null,
+): number | null {
+  const itemsTotal = items.reduce((sum, it) => sum + it.priceUsd, 0);
+  const hasAny = items.length > 0 || legacyDeclaredUsd !== null || shippingCostUsd !== null;
+  if (!hasAny) {
+    return null;
+  }
+  const base = items.length > 0 ? itemsTotal : (legacyDeclaredUsd ?? 0);
+  return round2(base + (shippingCostUsd ?? 0));
 }
 
 export async function listParcels(
@@ -247,6 +279,7 @@ export async function listParcels(
       ...(recipientId ? { recipientProfileId: recipientId } : {}),
     },
     orderBy: { createdAt: 'desc' },
+    include: { items: { orderBy: { createdAt: 'asc' } } },
   });
   return rows.map(serializeParcel);
 }
@@ -257,7 +290,10 @@ export async function getParcel(
 ): Promise<ParcelDetailResponse> {
   const parcel = await prisma.parcel.findFirst({
     where: { id: parcelId, recipientProfile: { userId } },
-    include: { logisticsEvents: { orderBy: { occurredAt: 'asc' } } },
+    include: {
+      logisticsEvents: { orderBy: { occurredAt: 'asc' } },
+      items: { orderBy: { createdAt: 'asc' } },
+    },
   });
   if (!parcel) {
     throw new Error('Посылка не найдена');
@@ -289,9 +325,13 @@ export async function createParcel(
 ): Promise<ParcelResponse> {
   await ensureRecipientOwned(userId, body.recipientProfileId);
 
-  const declaredValueUsd = body.declaredValueUsd ?? null;
+  const items = body.items ?? [];
+  const shippingCostUsd = body.shippingCostUsd ?? null;
+  const declaredValueUsd = computeDeclaredUsd(items, shippingCostUsd, body.declaredValueUsd ?? null);
   const declaredValueGel =
     declaredValueUsd === null ? null : round2(declaredValueUsd * USD_TO_GEL_RATE);
+  // Кол-во позиций — маркер однородности для движка экспозиции.
+  const quantity = items.length > 0 ? items.length : (body.quantity ?? 1);
   // Ожидаемую доставку движок экспозиции группирует по дням — берём ручную дату,
   // если указана; иначе оцениваем по перевозчику.
   const estimatedArrival = body.estimatedArrival
@@ -301,17 +341,24 @@ export async function createParcel(
   const parcel = await prisma.parcel.create({
     data: {
       recipientProfileId: body.recipientProfileId,
-      trackingNumber: body.trackingNumber,
+      name: body.name ?? null,
+      trackingNumber: body.trackingNumber ?? null,
       carrier: body.carrier ?? null,
       store: body.store ?? null,
       description: body.description ?? null,
       declaredValueUsd,
       declaredValueGel,
+      shippingCostUsd,
       weightKg: body.weightKg ?? null,
-      quantity: body.quantity ?? 1,
+      quantity,
       purchasedAt: body.purchasedAt ? new Date(body.purchasedAt) : null,
       estimatedArrival,
+      items:
+        items.length > 0
+          ? { create: items.map((it) => ({ name: it.name, priceUsd: it.priceUsd })) }
+          : undefined,
     },
+    include: { items: { orderBy: { createdAt: 'asc' } } },
   });
 
   await recomputeExposure(body.recipientProfileId);
@@ -351,10 +398,13 @@ export async function deleteParcel(userId: string, parcelId: string): Promise<vo
 }
 
 export interface UpdateParcelBody {
-  trackingNumber?: string;
+  name?: string | null;
+  trackingNumber?: string | null;
   carrier?: string | null;
   store?: string | null;
   description?: string | null;
+  items?: ParcelItemBody[];
+  shippingCostUsd?: number | null;
   declaredValueUsd?: number | null;
   weightKg?: number | null;
   quantity?: number;
@@ -369,33 +419,68 @@ export async function updateParcel(
 ): Promise<ParcelResponse> {
   const existing = await prisma.parcel.findFirst({
     where: { id: parcelId, recipientProfile: { userId } },
-    select: { id: true, recipientProfileId: true },
+    include: { items: true },
   });
   if (!existing) {
     throw new Error('Посылка не найдена');
   }
 
   const data: Prisma.ParcelUpdateInput = {};
+  if (body.name !== undefined) data.name = body.name;
   if (body.trackingNumber !== undefined) data.trackingNumber = body.trackingNumber;
   if (body.carrier !== undefined) data.carrier = body.carrier;
   if (body.store !== undefined) data.store = body.store;
   if (body.description !== undefined) data.description = body.description;
   if (body.weightKg !== undefined) data.weightKg = body.weightKg;
   if (body.quantity !== undefined) data.quantity = body.quantity;
+  if (body.shippingCostUsd !== undefined) data.shippingCostUsd = body.shippingCostUsd;
   if (body.purchasedAt !== undefined) {
     data.purchasedAt = body.purchasedAt ? new Date(body.purchasedAt) : null;
   }
   if (body.estimatedArrival !== undefined) {
     data.estimatedArrival = body.estimatedArrival ? new Date(body.estimatedArrival) : null;
   }
-  if (body.declaredValueUsd !== undefined) {
-    data.declaredValueUsd = body.declaredValueUsd;
+
+  // Пересчёт итога, если изменились позиции, доставка или legacy-цена.
+  if (
+    body.items !== undefined ||
+    body.shippingCostUsd !== undefined ||
+    body.declaredValueUsd !== undefined
+  ) {
+    const finalItems =
+      body.items ?? existing.items.map((it) => ({ name: it.name, priceUsd: it.priceUsd.toNumber() }));
+    const finalShipping =
+      body.shippingCostUsd !== undefined ? body.shippingCostUsd : toNumber(existing.shippingCostUsd);
+    const declaredValueUsd = computeDeclaredUsd(
+      finalItems,
+      finalShipping,
+      body.declaredValueUsd ?? toNumber(existing.declaredValueUsd),
+    );
+    data.declaredValueUsd = declaredValueUsd;
     data.declaredValueGel =
-      body.declaredValueUsd === null ? null : round2(body.declaredValueUsd * USD_TO_GEL_RATE);
+      declaredValueUsd === null ? null : round2(declaredValueUsd * USD_TO_GEL_RATE);
+    if (body.items !== undefined && finalItems.length > 0) {
+      data.quantity = finalItems.length;
+    }
   }
 
-  const updated = await prisma.parcel.update({ where: { id: parcelId }, data });
+  await prisma.$transaction(async (tx) => {
+    if (body.items !== undefined) {
+      await tx.parcelItem.deleteMany({ where: { parcelId } });
+      if (body.items.length > 0) {
+        await tx.parcelItem.createMany({
+          data: body.items.map((it) => ({ parcelId, name: it.name, priceUsd: it.priceUsd })),
+        });
+      }
+    }
+    await tx.parcel.update({ where: { id: parcelId }, data });
+  });
+
   await recomputeExposure(existing.recipientProfileId);
+  const updated = await prisma.parcel.findUniqueOrThrow({
+    where: { id: parcelId },
+    include: { items: { orderBy: { createdAt: 'asc' } } },
+  });
   return serializeParcel(updated);
 }
 

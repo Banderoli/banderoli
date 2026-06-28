@@ -72,7 +72,7 @@ export default async function DashboardPage({
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
-          <section className="rounded-xl border border-hairline bg-surface p-4">
+          <section className="rounded-xl border border-hairline bg-surface shadow-card p-4">
             <h2 className="mb-3 text-sm font-medium">Активные отправления</h2>
             <DashboardParcels
               parcels={parcelsForList}
@@ -82,7 +82,7 @@ export default async function DashboardPage({
             />
           </section>
 
-          <section className="rounded-xl border border-hairline bg-surface p-4">
+          <section className="rounded-xl border border-hairline bg-surface shadow-card p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="text-sm font-medium">Экспозиция · {data.recipientName}</h2>
               {data.recipients.length > 1 ? (

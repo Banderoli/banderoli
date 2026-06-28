@@ -41,6 +41,10 @@ export class TrackingProcessor extends WorkerHost {
       this.logger.warn(`Parcel ${parcelId} not found — skipping refresh`);
       return { parcelId, status: 'NOT_FOUND', newEvents: 0 };
     }
+    if (!parcel.trackingNumber) {
+      this.logger.warn(`Parcel ${parcelId} has no tracking number — skipping refresh`);
+      return { parcelId, status: 'NO_TRACKING', newEvents: 0 };
+    }
 
     const update = await this.provider.fetch({
       trackingNumber: parcel.trackingNumber,
@@ -60,7 +64,7 @@ export class TrackingProcessor extends WorkerHost {
     if (statusChanged && NOTIFY_ON.includes(update.status)) {
       await this.notifyStatusChange(
         parcel.recipientProfile.user.telegramChatId,
-        parcel.description ?? parcel.trackingNumber,
+        parcel.name ?? parcel.description ?? parcel.trackingNumber,
         update.status,
       );
     }

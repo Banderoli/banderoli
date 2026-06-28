@@ -40,7 +40,7 @@ export function RecipientsManager({ recipients }: { recipients: RecipientRespons
           recipients.map((r) => (
             <div
               key={r.id}
-              className="flex items-center gap-2 rounded-xl border border-hairline bg-surface p-3"
+              className="flex items-center gap-2 rounded-xl border border-hairline bg-surface shadow-card p-3"
             >
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium">{r.name}</div>

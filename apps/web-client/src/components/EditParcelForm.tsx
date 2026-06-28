@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from 'react';
 import { Pencil, X } from 'lucide-react';
 import type { ParcelResponse } from '@banderoli/contracts';
 import { updateParcelAction, type ParcelFormState } from '@/app/parcel-actions';
+import { ParcelItemsEditor } from './ParcelItemsEditor';
 
 const INITIAL: ParcelFormState = {};
 const inputClass =
@@ -36,7 +37,7 @@ export function EditParcelForm({ parcel }: { parcel: ParcelResponse }) {
           onClick={() => setOpen(false)}
         >
           <div
-            className="my-auto w-full max-w-md rounded-xl border border-hairline bg-surface p-5"
+            className="my-auto w-full max-w-lg rounded-xl border border-hairline bg-surface shadow-card p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -53,15 +54,7 @@ export function EditParcelForm({ parcel }: { parcel: ParcelResponse }) {
 
             <form action={action} className="space-y-2.5">
               <input type="hidden" name="id" value={parcel.id} />
-              <input name="trackingNumber" required defaultValue={parcel.trackingNumber} placeholder="Трек-номер *" className={inputClass} />
-              <input name="description" defaultValue={parcel.description ?? ''} placeholder="Описание" className={inputClass} />
-              <input name="store" defaultValue={parcel.store ?? ''} placeholder="Магазин" className={inputClass} />
-              <input name="carrier" defaultValue={parcel.carrier ?? ''} placeholder="Перевозчик" className={inputClass} />
-              <div className="grid grid-cols-3 gap-2">
-                <input name="declaredValueUsd" type="number" min="0" step="0.01" defaultValue={parcel.declaredValueUsd ?? ''} placeholder="$ цена" className={inputClass} />
-                <input name="weightKg" type="number" min="0" step="0.1" defaultValue={parcel.weightKg ?? ''} placeholder="кг" className={inputClass} />
-                <input name="quantity" type="number" min="1" step="1" defaultValue={parcel.quantity} placeholder="шт" className={inputClass} />
-              </div>
+              <input name="name" required defaultValue={parcel.name ?? ''} placeholder="Название посылки (напр. Алия1) *" className={inputClass} />
 
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
@@ -73,6 +66,25 @@ export function EditParcelForm({ parcel }: { parcel: ParcelResponse }) {
                   <input name="estimatedArrival" type="date" defaultValue={parcel.estimatedArrival ? parcel.estimatedArrival.slice(0, 10) : ''} className={inputClass} />
                 </label>
               </div>
+
+              <input name="store" defaultValue={parcel.store ?? ''} placeholder="Магазин" className={inputClass} />
+              <input name="carrier" defaultValue={parcel.carrier ?? ''} placeholder="Перевозчик" className={inputClass} />
+
+              <ParcelItemsEditor defaultItems={parcel.items} />
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs text-muted">Стоимость доставки ($)</span>
+                  <input name="shippingCostUsd" type="number" min="0" step="0.01" defaultValue={parcel.shippingCostUsd ?? ''} placeholder="$ доставка" className={inputClass} />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-muted">Вес (кг)</span>
+                  <input name="weightKg" type="number" min="0" step="0.1" defaultValue={parcel.weightKg ?? ''} placeholder="кг" className={inputClass} />
+                </label>
+              </div>
+
+              <textarea name="description" rows={2} defaultValue={parcel.description ?? ''} placeholder="Комментарий" className={inputClass} />
+              <input name="trackingNumber" defaultValue={parcel.trackingNumber ?? ''} placeholder="Трек-номер (если есть)" className={inputClass} />
 
               {state.error ? <p className="text-xs text-high">{state.error}</p> : null}
 

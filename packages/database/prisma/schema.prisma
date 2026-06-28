@@ -163,12 +163,15 @@ model Carrier {
 model Parcel {
   id                   String        @id @default(cuid())
   recipientProfileId   String
-  trackingNumber       String
+  name                 String?       // метка посылки (напр. «Алия1»)
+  trackingNumber       String?       // необязателен: посылку можно завести без трека
   carrier              String?
   store                String?
-  description          String?
+  description          String?       // комментарий пользователя
+  // declaredValueUsd/Gel — денормализованный итог: Σ цен позиций + стоимость доставки.
   declaredValueUsd     Decimal?      @db.Decimal(10, 2)
   declaredValueGel     Decimal?      @db.Decimal(10, 2)
+  shippingCostUsd      Decimal?      @db.Decimal(10, 2)
   weightKg             Decimal?      @db.Decimal(6, 3)
   quantity             Int           @default(1)
   status               ParcelStatus  @default(PENDING)
@@ -182,10 +185,25 @@ model Parcel {
 
   recipientProfile RecipientProfile  @relation(fields: [recipientProfileId], references: [id], onDelete: Cascade)
   logisticsEvents  LogisticsEvent[]
+  items            ParcelItem[]
 
   @@index([recipientProfileId])
   @@index([trackingNumber])
   @@index([status])
+}
+
+// ─── Позиция посылки (товар) ─────────────────────────────────────────────────
+
+model ParcelItem {
+  id        String   @id @default(cuid())
+  parcelId  String
+  name      String
+  priceUsd  Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  parcel Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+
+  @@index([parcelId])
 }
 
 enum ParcelStatus {

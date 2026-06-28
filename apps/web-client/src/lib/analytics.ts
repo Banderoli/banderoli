@@ -16,15 +16,6 @@ export interface AnalyticsData {
   byStore: AnalyticsBucket[];
 }
 
-function parseStore(description: string | null): string {
-  if (!description) {
-    return 'Прочее';
-  }
-  const parts = description.split('·');
-  const last = parts.length > 1 ? parts[parts.length - 1]?.trim() : '';
-  return last && last.length > 0 ? last : 'Прочее';
-}
-
 function bucketize(
   parcels: ParcelResponse[],
   keyOf: (parcel: ParcelResponse) => string,
@@ -57,6 +48,6 @@ export function buildAnalytics(
     deliveredCount: parcels.filter((p) => p.status === 'DELIVERED').length,
     byCarrier: bucketize(parcels, (p) => p.carrier ?? 'Без перевозчика'),
     byRecipient: bucketize(parcels, (p) => nameById.get(p.recipientProfileId) ?? 'Неизвестно'),
-    byStore: bucketize(parcels, (p) => p.store ?? parseStore(p.description)),
+    byStore: bucketize(parcels, (p) => p.store ?? 'Прочее'),
   };
 }

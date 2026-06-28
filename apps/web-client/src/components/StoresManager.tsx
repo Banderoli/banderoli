@@ -38,7 +38,7 @@ export function StoresManager({ stores }: { stores: StoreResponse[] }) {
           stores.map((s) => (
             <li
               key={s.id}
-              className="flex items-center gap-2 rounded-lg border border-hairline bg-surface px-3 py-2"
+              className="flex items-center gap-2 rounded-lg border border-hairline bg-surface shadow-card px-3 py-2"
             >
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium">{s.name}</div>

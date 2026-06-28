@@ -5,8 +5,9 @@ import type { CarrierResponse, ParcelResponse, StoreResponse } from '@banderoli/
 import type { RecipientOption } from '@/lib/mock-data';
 import { DashboardParcelCard } from './DashboardParcelCard';
 
-const selectClass =
-  'rounded-md border border-hairline bg-canvas px-3 py-2 text-sm outline-none focus:border-brand';
+// Фирменный фиолетовый стиль всех полей фильтра (селекты + поиск по треку).
+const fieldClass =
+  'rounded-md border border-brand bg-brand-soft px-3 py-2 text-sm text-brand-dark shadow-card outline-none transition focus:border-brand-dark';
 
 export function DashboardParcels({
   parcels,
@@ -71,7 +72,7 @@ export function DashboardParcels({
       (!recipient || p.recipientProfileId === recipient) &&
       (!store || p.store === store) &&
       (!carrier || p.carrier === carrier) &&
-      (!query || p.trackingNumber.toLowerCase().includes(query)),
+      (!query || `${p.trackingNumber ?? ''} ${p.name ?? ''}`.toLowerCase().includes(query)),
   );
 
   return (
@@ -82,7 +83,7 @@ export function DashboardParcels({
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
             aria-label="Получатель"
-            className={selectClass}
+            className={fieldClass}
           >
             <option value="">Все посылки ({active.length})</option>
             {recipientOptions.map((r) => (
@@ -95,7 +96,7 @@ export function DashboardParcels({
           <div className="hidden lg:block" />
         )}
 
-        <select value={store} onChange={(e) => setStore(e.target.value)} aria-label="Магазин" className={selectClass}>
+        <select value={store} onChange={(e) => setStore(e.target.value)} aria-label="Магазин" className={fieldClass}>
           <option value="">Все магазины</option>
           {storeOptions.map((s) => (
             <option key={s} value={s}>
@@ -104,7 +105,7 @@ export function DashboardParcels({
           ))}
         </select>
 
-        <select value={carrier} onChange={(e) => setCarrier(e.target.value)} aria-label="Почтовая служба" className={selectClass}>
+        <select value={carrier} onChange={(e) => setCarrier(e.target.value)} aria-label="Почтовая служба" className={fieldClass}>
           <option value="">Все службы</option>
           {carrierOptions.map((c) => (
             <option key={c} value={c}>
@@ -118,7 +119,7 @@ export function DashboardParcels({
           onChange={(e) => setTrack(e.target.value)}
           placeholder="Поиск по трек-коду"
           aria-label="Трек-код"
-          className="rounded-md border border-hairline bg-canvas px-3 py-2 text-sm outline-none focus:border-brand"
+          className={`${fieldClass} placeholder:text-brand-dark/50`}
         />
       </div>
 

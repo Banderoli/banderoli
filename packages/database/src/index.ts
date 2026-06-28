@@ -21,6 +21,7 @@ export type {
   FamilyMember,
   RecipientProfile,
   Parcel,
+  ParcelItem,
   LogisticsEvent,
   CustomsRule,
   Store,
