@@ -2,7 +2,8 @@
 
 import type { ProductSearchResponse, ReviewResponse } from '@banderoli/contracts';
 import { auth } from '@/auth';
-import { aiProductSearch, aiReviews } from '@/lib/api';
+import { aiExtractCart, aiProductSearch, aiReviews } from '@/lib/api';
+import type { CartExtraction } from '@/lib/cart-vision';
 
 export interface ReviewActionState {
   result?: ReviewResponse;
@@ -61,5 +62,42 @@ export async function productSearchAction(
     return { result };
   } catch (error) {
     return { error: quotaError(error) };
+  }
+}
+
+export interface CartImportState {
+  ok?: boolean;
+  data?: CartExtraction;
+  remaining?: number;
+  error?: string;
+}
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+export async function extractCartAction(formData: FormData): Promise<CartImportState> {
+  const session = await auth();
+  if (!session?.user) {
+    return { error: 'Сессия истекла, войдите снова' };
+  }
+
+  const file = formData.get('image');
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: 'Файл не выбран' };
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return { error: 'Файл больше 5 МБ — уменьшите масштаб скриншота' };
+  }
+
+  const base64 = Buffer.from(await file.arrayBuffer()).toString('base64');
+
+  try {
+    const { data, quota } = await aiExtractCart(session.user.id, base64, file.type);
+    return { ok: true, data, remaining: quota.remaining };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('429') || message.includes('QUOTA')) {
+      return { error: 'Дневной лимит ИИ-запросов исчерпан. Попробуйте завтра.' };
+    }
+    return { error: message || 'Не удалось распознать скриншот' };
   }
 }

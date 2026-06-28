@@ -29,6 +29,7 @@ import {
   type ParcelExposureInput,
 } from '@banderoli/customs-exposure-engine';
 import { estimateEta } from '@banderoli/flight-intelligence';
+import { extractCartFromImage, type CartExtraction } from './cart-vision';
 
 const ACTIVE_STATUSES: Parcel['status'][] = [
   'PENDING',
@@ -637,4 +638,25 @@ export async function aiProductSearch(
   const suggestions = mockSuggestions(description);
   const quota = await consumeAiQuota(userId);
   return { suggestions, generatedByAi: false, quota };
+}
+
+export interface CartExtractionResponse {
+  data: CartExtraction;
+  quota: AiQuota;
+}
+
+// Распознавание скриншота корзины через Claude vision — расходует общий дневной
+// ИИ-лимит (как поиск отзывов/товара). Квота списывается только при успехе.
+export async function aiExtractCart(
+  userId: string,
+  base64: string,
+  mediaType: string,
+): Promise<CartExtractionResponse> {
+  await ensureAiQuota(userId);
+  const result = await extractCartFromImage(base64, mediaType);
+  if (!result.ok || !result.data) {
+    throw new Error(result.error ?? 'Не удалось распознать корзину');
+  }
+  const quota = await consumeAiQuota(userId);
+  return { data: result.data, quota };
 }
