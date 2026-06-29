@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { CarrierResponse, ParcelResponse, StoreResponse } from '@banderoli/contracts';
+import type { ParcelResponse } from '@banderoli/contracts';
 import type { RecipientOption } from '@/lib/mock-data';
 import { DashboardParcelCard } from './DashboardParcelCard';
 
@@ -12,13 +12,13 @@ const fieldClass =
 export function DashboardParcels({
   parcels,
   recipients,
-  stores,
-  carriers,
+  storeNames,
+  carrierNames,
 }: {
   parcels: ParcelResponse[];
   recipients: RecipientOption[];
-  stores: StoreResponse[];
-  carriers: CarrierResponse[];
+  storeNames: string[];
+  carrierNames: string[];
 }) {
   const [recipient, setRecipient] = useState('');
   const [store, setStore] = useState('');
@@ -49,22 +49,9 @@ export function DashboardParcels({
     [recipients, active],
   );
 
-  // Магазины/службы: все сохранённые у пользователя + встречающиеся в посылках.
-  const storeOptions = useMemo(() => {
-    const names = new Set<string>(stores.map((s) => s.name));
-    for (const p of active) {
-      if (p.store) names.add(p.store);
-    }
-    return [...names].sort((a, b) => a.localeCompare(b, 'ru'));
-  }, [stores, active]);
-
-  const carrierOptions = useMemo(() => {
-    const names = new Set<string>(carriers.map((c) => c.name));
-    for (const p of active) {
-      if (p.carrier) names.add(p.carrier);
-    }
-    return [...names].sort((a, b) => a.localeCompare(b, 'ru'));
-  }, [carriers, active]);
+  // Магазины/службы для фильтра приходят уже объединённым списком имён.
+  const storeOptions = storeNames;
+  const carrierOptions = carrierNames;
 
   const query = track.trim().toLowerCase();
   const filtered = active.filter(
@@ -132,6 +119,8 @@ export function DashboardParcels({
               key={p.id}
               parcel={p}
               recipientName={recipientNameById[p.recipientProfileId] ?? '—'}
+              storeNames={storeNames}
+              carrierNames={carrierNames}
             />
           ))
         )}

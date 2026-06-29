@@ -11,11 +11,23 @@ const INITIAL: ParcelFormState = {};
 const inputClass =
   'w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm outline-none focus:border-brand';
 
-export function EditParcelForm({ parcel }: { parcel: ParcelResponse }) {
+export function EditParcelForm({
+  parcel,
+  storeNames,
+  carrierNames,
+}: {
+  parcel: ParcelResponse;
+  storeNames: string[];
+  carrierNames: string[];
+}) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState(updateParcelAction, INITIAL);
   const [currency, setCurrency] = useState(parcel.currency || 'USD');
+  const [store, setStore] = useState(parcel.store ?? '');
+  const [carrier, setCarrier] = useState(parcel.carrier ?? '');
   const symbol = currencySymbol(currency);
+  const storeOptions = Array.from(new Set([...storeNames, store].filter(Boolean)));
+  const carrierOptions = Array.from(new Set([...carrierNames, carrier].filter(Boolean)));
 
   useEffect(() => {
     if (state.ok) {
@@ -70,8 +82,31 @@ export function EditParcelForm({ parcel }: { parcel: ParcelResponse }) {
                 </label>
               </div>
 
-              <input name="store" defaultValue={parcel.store ?? ''} placeholder="Магазин" className={inputClass} />
-              <input name="carrier" defaultValue={parcel.carrier ?? ''} placeholder="Перевозчик" className={inputClass} />
+              {storeOptions.length > 0 ? (
+                <select name="store" value={store} onChange={(e) => setStore(e.target.value)} className={inputClass}>
+                  <option value="">— магазин —</option>
+                  {storeOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input name="store" value={store} onChange={(e) => setStore(e.target.value)} placeholder="Магазин" className={inputClass} />
+              )}
+
+              {carrierOptions.length > 0 ? (
+                <select name="carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} className={inputClass}>
+                  <option value="">— перевозчик —</option>
+                  {carrierOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input name="carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Перевозчик" className={inputClass} />
+              )}
 
               <label className="block">
                 <span className="mb-1 block text-xs text-muted">Валюта цен</span>

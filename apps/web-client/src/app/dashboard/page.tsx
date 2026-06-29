@@ -1,13 +1,10 @@
-import { Info, Receipt, Users, Weight } from 'lucide-react';
+import { Info, Sparkles } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { MetricCard } from '@/components/MetricCard';
 import { DashboardParcels } from '@/components/DashboardParcels';
-import { ExposureGauge } from '@/components/ExposureGauge';
-import { LimitBar } from '@/components/LimitBar';
 import { AddParcelForm } from '@/components/AddParcelForm';
 import { AdvisorBanner } from '@/components/AdvisorBanner';
-import { RecipientSwitcher } from '@/components/RecipientSwitcher';
 import { loadDashboard } from '@/lib/dashboard';
 import { listCarriers, listParcels, listStores, loadRecipientsExposure } from '@/lib/api';
 import { getGelRates } from '@/lib/nbg-rate';
@@ -36,13 +33,37 @@ export default async function DashboardPage({
   const { exposure } = data;
   // Список на дашборде показывает посылки всех получателей; в демо-режиме — мок-данные.
   const parcelsForList = demo ? data.parcels : allParcels;
-  const atRiskRecipients = recipientsExposure.filter((r) => r.ratio >= 0.85 || r.jointArrival);
+  const recipientNameById = Object.fromEntries(data.recipients.map((r) => [r.id, r.name]));
+  // Все магазины/перевозчики для выпадающих списков: сохранённые + встречающиеся в посылках.
+  const storeNames = Array.from(
+    new Set(
+      [...stores.map((s) => s.name), ...parcelsForList.map((p) => p.store)].filter(
+        (s): s is string => Boolean(s),
+      ),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'ru'));
+  const carrierNames = Array.from(
+    new Set(
+      [...carriers.map((c) => c.name), ...parcelsForList.map((p) => p.carrier)].filter(
+        (s): s is string => Boolean(s),
+      ),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'ru'));
   const exposureAccent =
     exposure.level === 'HIGH' ? 'high' : exposure.level === 'MEDIUM' ? 'medium' : undefined;
 
   return (
     <main className="px-4 py-5 sm:px-6 sm:py-6">
-        <AdvisorBanner recipients={recipientsExposure} usdRate={rates.USD} />
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-lg font-medium">Дашборд</h1>
+          <AddParcelForm
+            recipients={recipientsExposure}
+            selectedRecipientId={data.selectedRecipientId}
+            storeNames={storeNames}
+            carrierNames={carrierNames}
+            rates={rates}
+          />
+        </div>
 
         {demo ? (
           <div className="mb-4 flex items-center gap-2 rounded-md bg-medium-soft px-3 py-2 text-xs text-medium">
@@ -51,16 +72,18 @@ export default async function DashboardPage({
           </div>
         ) : null}
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-lg font-medium">Мои посылки</h1>
-          <AddParcelForm
-            recipients={recipientsExposure}
-            selectedRecipientId={data.selectedRecipientId}
-            stores={stores}
-            carriers={carriers}
-            rates={rates}
-          />
-        </div>
+        <AdvisorBanner
+          recipients={recipientsExposure}
+          usdRate={rates.USD}
+          exposure={exposure}
+          recipientName={data.recipientName}
+          weightUsedKg={data.weightUsedKg}
+          weightLimitKg={data.weightLimitKg}
+          switcherRecipients={data.recipients}
+          selectedRecipientId={data.selectedRecipientId}
+          parcels={parcelsForList}
+          recipientNameById={recipientNameById}
+        />
 
         <div className="mb-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
           <MetricCard label="В пути" value={String(data.metrics.inTransit)} sub="активных отправлений" />
@@ -84,72 +107,23 @@ export default async function DashboardPage({
             <DashboardParcels
               parcels={parcelsForList}
               recipients={data.recipients}
-              stores={stores}
-              carriers={carriers}
+              storeNames={storeNames}
+              carrierNames={carrierNames}
             />
           </section>
 
-          <section className="rounded-xl border border-hairline bg-surface shadow-card p-4">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-medium">Экспозиция · {data.recipientName}</h2>
-              {data.recipients.length > 1 ? (
-                <RecipientSwitcher recipients={data.recipients} selectedId={data.selectedRecipientId} />
-              ) : null}
+          <section className="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-hairline bg-surface p-6 text-center shadow-card">
+            <div className="max-w-xs">
+              <span className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand-soft text-brand-dark">
+                <Sparkles size={18} aria-hidden />
+              </span>
+              <p className="text-sm leading-relaxed text-muted">
+                Скоро на этом месте будет виден интеллектуальный прогноз возможных задержек ваших
+                посылок, авиарейсов, перегрузок складов и другая полезная информация. А также появятся
+                полезные рекомендации. Искусственный интеллект Banderoli.AI уже работает над сбором
+                требуемой для этого статистики.
+              </p>
             </div>
-
-            <ExposureGauge score={exposure.score} level={exposure.level} />
-
-            <div className="mt-4 space-y-3">
-              <LimitBar
-                icon={<Receipt size={13} aria-hidden />}
-                label={`Лимит ${exposure.limitGel} GEL`}
-                used={exposure.totalValueGel}
-                total={exposure.limitGel}
-                valueText={`${Math.round(exposure.totalValueGel)} / ${exposure.limitGel}`}
-              />
-              <LimitBar
-                icon={<Weight size={13} aria-hidden />}
-                label="Вес"
-                used={data.weightUsedKg}
-                total={data.weightLimitKg}
-                valueText={`${data.weightUsedKg} / ${data.weightLimitKg} кг`}
-              />
-            </div>
-
-            {exposure.alerts.map((alert) => (
-              <div
-                key={alert.code}
-                className="mt-4 flex gap-2 rounded-md bg-medium-soft p-3 text-xs leading-relaxed text-medium"
-              >
-                <Info size={15} aria-hidden className="mt-0.5 shrink-0" />
-                <span>{alert.message}</span>
-              </div>
-            ))}
-
-            {atRiskRecipients.length > 0 ? (
-              <div className="mt-4 rounded-md bg-medium-soft p-3 text-xs leading-relaxed text-medium">
-                <div className="mb-1 flex items-center gap-1.5 font-medium">
-                  <Users size={13} aria-hidden />
-                  Получатели у лимита
-                </div>
-                <ul className="space-y-0.5">
-                  {atRiskRecipients.map((r) => (
-                    <li key={r.id}>
-                      {r.name}: {Math.round(r.usedGel)}/{r.limitGel} GEL
-                      {r.exceeded
-                        ? ' — лимит превышен'
-                        : r.ratio >= 0.85
-                          ? ' — близко к лимиту'
-                          : ''}
-                      {r.jointArrival ? ' · возможно совпадение прибытия' : ''}
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-1.5 text-muted">
-                  Новую посылку лучше оформить на получателя с запасом по лимиту.
-                </p>
-              </div>
-            ) : null}
           </section>
         </div>
     </main>

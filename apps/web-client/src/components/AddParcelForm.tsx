@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { Plus, X } from 'lucide-react';
-import { PARCEL_CURRENCIES, type CarrierResponse, type StoreResponse } from '@banderoli/contracts';
+import { PARCEL_CURRENCIES } from '@banderoli/contracts';
 import { createParcelAction, type ParcelFormState } from '@/app/parcel-actions';
 import type { RecipientExposure } from '@/lib/api';
 import type { CartExtraction } from '@/lib/cart-vision';
@@ -14,50 +14,58 @@ const INITIAL: ParcelFormState = {};
 const inputClass =
   'w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm outline-none focus:border-brand';
 
-interface Prefill {
-  store?: string;
-  shipping?: string;
-  items?: { name: string; priceUsd: number }[];
-}
-
 export function AddParcelForm({
   recipients,
   selectedRecipientId,
-  stores,
-  carriers,
+  storeNames,
+  carrierNames,
   rates,
 }: {
   recipients: RecipientExposure[];
   selectedRecipientId: string;
-  stores: StoreResponse[];
-  carriers: CarrierResponse[];
+  storeNames: string[];
+  carrierNames: string[];
   rates: Record<string, number>;
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createParcelAction, INITIAL);
-  // Данные из распознанного скриншота; formKey ремонтит форму, чтобы defaultValue применился.
-  const [prefill, setPrefill] = useState<Prefill>({});
+  // formKey ремонтит редактор позиций, чтобы применились распознанные товары.
   const [formKey, setFormKey] = useState(0);
+  const [aiItems, setAiItems] = useState<{ name: string; priceUsd: number }[] | undefined>();
   const [currency, setCurrency] = useState('USD');
+  const [recipientId, setRecipientId] = useState(selectedRecipientId);
+  const [store, setStore] = useState('');
+  const [shipping, setShipping] = useState('');
+  const [itemsTotal, setItemsTotal] = useState(0);
+
+  const resetForm = () => {
+    setAiItems(undefined);
+    setCurrency('USD');
+    setRecipientId(selectedRecipientId);
+    setStore('');
+    setShipping('');
+    setItemsTotal(0);
+  };
 
   const closeModal = () => {
     setOpen(false);
-    setPrefill({});
-    setCurrency('USD');
+    resetForm();
   };
 
+  // Закрываем модалку после каждого успешного добавления (dep — весь объект state,
+  // чтобы срабатывало и на втором, и на третьем добавлении подряд).
   useEffect(() => {
     if (state.ok) {
-      closeModal();
+      setOpen(false);
+      resetForm();
     }
-  }, [state.ok]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   const handleExtract = (data: CartExtraction) => {
-    setPrefill({
-      store: data.store ?? undefined,
-      shipping: data.shipping !== null ? String(data.shipping) : undefined,
-      items: data.items.map((it) => ({ name: it.name, priceUsd: it.price })),
-    });
+    setAiItems(data.items.map((it) => ({ name: it.name, priceUsd: it.price })));
+    setStore(data.store ?? '');
+    setShipping(data.shipping !== null ? String(data.shipping) : '');
     if (data.currency && (PARCEL_CURRENCIES as readonly string[]).includes(data.currency.toUpperCase())) {
       setCurrency(data.currency.toUpperCase());
     }
@@ -66,16 +74,47 @@ export function AddParcelForm({
 
   const symbol = currencySymbol(currency);
   const rate = rates[currency] ?? rates.USD ?? 0;
+  const usdRate = rates.USD ?? 0;
+  const storeOptions = Array.from(new Set([...storeNames, store].filter(Boolean)));
+
+  // Живой совет: остаток лимита у выбранного получателя после этой посылки.
+  const parcelAmount = itemsTotal + (Number(shipping) || 0);
+  const selectedRecipient = recipients.find((r) => r.id === recipientId);
+  let advice: { tone: 'green' | 'amber' | 'red'; text: string } | null = null;
+  if (selectedRecipient && parcelAmount > 0) {
+    const parcelGel = parcelAmount * rate;
+    const headroom = selectedRecipient.limitGel - (selectedRecipient.usedGel + parcelGel);
+    const headroomUsd = usdRate > 0 ? Math.round(headroom / usdRate) : 0;
+    if (headroom < 0) {
+      advice = {
+        tone: 'red',
+        text: `Эта посылка превысит лимит ${selectedRecipient.name} на ${Math.round(-headroom)} GEL — вероятна растаможка (НДС на всю сумму).`,
+      };
+    } else if (headroom <= selectedRecipient.limitGel * 0.1) {
+      advice = {
+        tone: 'amber',
+        text: `Почти у лимита: после этой посылки у ${selectedRecipient.name} останется ≈ ${Math.round(headroom)} GEL (~$${headroomUsd}).`,
+      };
+    } else {
+      advice = {
+        tone: 'green',
+        text: `После этой посылки у ${selectedRecipient.name} останется ≈ ${Math.round(headroom)} GEL (~$${headroomUsd}) до лимита.`,
+      };
+    }
+  }
+  const adviceTone =
+    advice?.tone === 'red' ? 'text-high' : advice?.tone === 'amber' ? 'text-medium' : 'text-low';
+  const adviceEmoji = advice?.tone === 'red' ? '🔴' : advice?.tone === 'amber' ? '🟡' : '🟢';
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-dark"
+        className="flex w-full items-center justify-center gap-1.5 rounded-md bg-brand px-3.5 py-2.5 text-sm font-medium text-white shadow-card transition hover:bg-brand-dark"
       >
-        <Plus size={15} aria-hidden />
-        Добавить трек
+        <Plus size={16} aria-hidden />
+        Добавить заказ
       </button>
 
       {open ? (
@@ -107,15 +146,14 @@ export function AddParcelForm({
               <div className="h-px flex-1 bg-hairline" />
             </div>
 
-            <form key={formKey} action={formAction} className="space-y-2.5">
+            <form action={formAction} className="space-y-2.5">
               {recipients.length > 0 ? (
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">
-                    Получатель (на кого выписать)
-                  </span>
+                  <span className="mb-1 block text-xs text-muted">Получатель (на кого выписать)</span>
                   <select
                     name="recipientProfileId"
-                    defaultValue={selectedRecipientId}
+                    value={recipientId}
+                    onChange={(e) => setRecipientId(e.target.value)}
                     className={inputClass}
                   >
                     {recipients.map((r) => (
@@ -143,25 +181,31 @@ export function AddParcelForm({
                 </label>
               </div>
 
-              <input
-                name="store"
-                list="add-store-suggestions"
-                defaultValue={prefill.store ?? ''}
-                placeholder="Магазин"
-                className={inputClass}
-              />
-              <datalist id="add-store-suggestions">
-                {stores.map((s) => (
-                  <option key={s.id} value={s.name} />
-                ))}
-              </datalist>
+              {storeOptions.length > 0 ? (
+                <select name="store" value={store} onChange={(e) => setStore(e.target.value)} className={inputClass}>
+                  <option value="">— магазин —</option>
+                  {storeOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  name="store"
+                  value={store}
+                  onChange={(e) => setStore(e.target.value)}
+                  placeholder="Магазин (добавьте в Настройках)"
+                  className={inputClass}
+                />
+              )}
 
-              {carriers.length > 0 ? (
+              {carrierNames.length > 0 ? (
                 <select name="carrier" defaultValue="" className={inputClass}>
                   <option value="">— перевозчик —</option>
-                  {carriers.map((c) => (
-                    <option key={c.id} value={c.name}>
-                      {c.name}
+                  {carrierNames.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
                     </option>
                   ))}
                 </select>
@@ -185,12 +229,26 @@ export function AddParcelForm({
                 </select>
               </label>
 
-              <ParcelItemsEditor defaultItems={prefill.items} currencySymbol={symbol} />
+              <ParcelItemsEditor
+                key={formKey}
+                defaultItems={aiItems}
+                currencySymbol={symbol}
+                onTotalChange={setItemsTotal}
+              />
 
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
                   <span className="mb-1 block text-xs text-muted">Стоимость доставки ({symbol})</span>
-                  <input name="shippingCostUsd" type="number" min="0" step="0.01" defaultValue={prefill.shipping ?? ''} placeholder={`${symbol} доставка`} className={inputClass} />
+                  <input
+                    name="shippingCostUsd"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={shipping}
+                    onChange={(e) => setShipping(e.target.value)}
+                    placeholder={`${symbol} доставка`}
+                    className={inputClass}
+                  />
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs text-muted">Вес (кг)</span>
@@ -201,6 +259,13 @@ export function AddParcelForm({
               <textarea name="description" rows={2} placeholder="Комментарий" className={inputClass} />
 
               <input name="trackingNumber" placeholder="Трек-номер (если есть)" className={inputClass} />
+
+              {advice ? (
+                <p className={`flex items-start gap-1.5 text-xs font-medium ${adviceTone}`}>
+                  <span aria-hidden>{adviceEmoji}</span>
+                  <span>{advice.text}</span>
+                </p>
+              ) : null}
 
               <p className="text-xs text-muted">
                 {currency === 'GEL'

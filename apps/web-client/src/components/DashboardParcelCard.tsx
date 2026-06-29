@@ -35,9 +35,13 @@ function Field({ label, value }: { label: string; value: string }) {
 export function DashboardParcelCard({
   parcel,
   recipientName,
+  storeNames,
+  carrierNames,
 }: {
   parcel: ParcelResponse;
   recipientName: string;
+  storeNames: string[];
+  carrierNames: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [track, trackAction, trackPending] = useActionState(checkTrackingAction, TRACKING_INIT);
@@ -60,7 +64,8 @@ export function DashboardParcelCard({
             {parcel.name ?? parcel.description ?? parcel.trackingNumber ?? 'Посылка'}
           </div>
           <div className="mt-0.5 truncate text-xs text-muted">
-            {parcel.carrier ?? '—'} · {eta}
+            {recipientName} · {parcel.carrier ?? '—'} · {eta}
+            {parcel.items.length > 0 ? ` · ${parcel.items.length} тов.` : ''}
           </div>
         </div>
         <span className="shrink-0 text-sm font-medium">{formatMoney(parcel.declaredValueUsd, parcel.currency)}</span>
@@ -88,7 +93,7 @@ export function DashboardParcelCard({
           ) : null}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <EditParcelForm parcel={parcel} />
+            <EditParcelForm parcel={parcel} storeNames={storeNames} carrierNames={carrierNames} />
 
             <form action={setParcelStatusAction}>
               <input type="hidden" name="id" value={parcel.id} />

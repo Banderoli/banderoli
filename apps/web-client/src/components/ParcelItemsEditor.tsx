@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 
 interface ItemRow {
@@ -16,9 +16,11 @@ const rowInput =
 export function ParcelItemsEditor({
   defaultItems,
   currencySymbol = '$',
+  onTotalChange,
 }: {
   defaultItems?: { name: string; priceUsd: number }[];
   currencySymbol?: string;
+  onTotalChange?: (total: number) => void;
 }) {
   const [rows, setRows] = useState<ItemRow[]>(
     defaultItems && defaultItems.length > 0
@@ -38,6 +40,10 @@ export function ParcelItemsEditor({
       .filter((r) => r.name.length > 0),
   );
   const itemsTotal = rows.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
+
+  useEffect(() => {
+    onTotalChange?.(itemsTotal);
+  }, [itemsTotal, onTotalChange]);
 
   return (
     <div className="space-y-2 rounded-md border border-hairline bg-surface p-3">
