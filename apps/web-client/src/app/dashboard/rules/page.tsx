@@ -1,244 +1,196 @@
-import type { ComponentType, ReactNode } from 'react';
+import type { ComponentType } from 'react';
 import {
   AlertTriangle,
+  BellRing,
   Boxes,
-  Calculator,
   Camera,
+  ChevronDown,
   Package,
   Repeat,
   Scale,
   Send,
   Sparkles,
-  Store,
   Truck,
-  Users,
   Weight,
 } from 'lucide-react';
 import { getUsdToGelRate } from '@/lib/nbg-rate';
 
-type Icon = ComponentType<{ size?: number; 'aria-hidden'?: boolean }>;
+type Icon = ComponentType<{ size?: number; 'aria-hidden'?: boolean; className?: string }>;
 
-interface RuleCard {
-  icon: Icon;
-  title: string;
-  limit: string;
-  consequence: string;
-}
-
-const RULES: RuleCard[] = [
+// Что получает пользователь — ценность, а не устройство системы.
+const BENEFITS: { icon: Icon; title: string; body: string }[] = [
   {
     icon: Scale,
-    title: 'Беспошлинный лимит стоимости',
-    limit: '≤ 300 GEL на получателя',
-    consequence:
-      'При превышении начисляется НДС 18% и таможенная пошлина 0–12% (по коду ТН ВЭД) на всю стоимость партии, а не только на сумму сверх лимита.',
+    title: 'Следит за лимитом',
+    body: 'Автоматически считаем стоимость всех ваших покупок и предупреждаем до того, как возникнут проблемы с таможней.',
   },
   {
-    icon: Weight,
-    title: 'Лимит веса',
-    limit: '≤ 30 кг',
-    consequence:
-      'Превышение переводит отправление в категорию коммерческих с полным таможенным оформлением.',
+    icon: Package,
+    title: 'Собирает посылки',
+    body: 'Добавляйте товары вручную или импортируйте корзину магазина. Стоимость доставки автоматически учитывается в лимите.',
   },
   {
-    icon: Boxes,
-    title: 'Однородность товаров',
-    limit: 'до 5 единиц одного типа',
-    consequence:
-      '5+ единиц однотипного товара — маркер коммерческой партии: возможна переквалификация, переоценка и оформление как для бизнеса.',
+    icon: Sparkles,
+    title: 'Заполняет данные',
+    body: 'Загрузите скриншот корзины — товары, цены и магазин распознаются автоматически. Расширение браузера — скоро.',
   },
   {
-    icon: Repeat,
-    title: 'Консолидация по дню прибытия',
-    limit: 'суммируется на получателя',
-    consequence:
-      'Несколько посылок одному получателю в один операционный день суммируются. Если совокупная стоимость превышает 300 GEL — налог начисляется на всю сумму.',
+    icon: BellRing,
+    title: 'Предупреждает заранее',
+    body: 'Если есть риск превышения лимита, коммерческой партии или совпадения дат прибытия — вы узнаете об этом заранее.',
   },
 ];
 
-function GuideItem({ icon: Icon, title, children }: { icon: Icon; title: string; children: ReactNode }) {
-  return (
-    <div className="flex gap-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand-dark">
-        <Icon size={17} aria-hidden />
-      </span>
-      <div className="min-w-0">
-        <div className="text-sm font-medium">{title}</div>
-        <div className="mt-1 space-y-2 text-sm leading-relaxed text-muted">{children}</div>
-      </div>
-    </div>
-  );
-}
+// Правила в формате «можно или нельзя» — так, как их задаёт реальный пользователь.
+const QUESTIONS: { icon: Icon; q: string; a: string }[] = [
+  {
+    icon: Scale,
+    q: 'Что будет при превышении 300 GEL на получателя?',
+    a: 'Начисляется НДС 18% и пошлина 0–12% (по коду ТН ВЭД) на всю стоимость партии, а не только на сумму сверх лимита.',
+  },
+  {
+    icon: Weight,
+    q: 'Что будет, если посылка тяжелее 30 кг?',
+    a: 'Отправление переводится в категорию коммерческих с полным таможенным оформлением.',
+  },
+  {
+    icon: Boxes,
+    q: 'Можно ли заказать 5 одинаковых товаров?',
+    a: '5+ единиц однотипного товара — маркер коммерческой партии: возможны переквалификация, переоценка и оформление как для бизнеса.',
+  },
+  {
+    icon: Repeat,
+    q: 'Что если две посылки придут в один день?',
+    a: 'Их стоимость суммируется на получателя. Если в сумме больше 300 GEL — налог начисляется на всю сумму.',
+  },
+];
 
-export default async function HowItWorksPage() {
+const TIPS: { icon: Icon; text: string }[] = [
+  { icon: Camera, text: 'Скриншот корзины — самый быстрый способ: ИИ распознает товары, цены, доставку и магазин.' },
+  { icon: Truck, text: 'У посылки с трек-номером кнопка «Проверить статус» покажет реальный статус доставки.' },
+  { icon: Sparkles, text: 'ИИ-функции (отзывы, подбор товара, распознавание корзины) — бесплатно до 10 запросов в день.' },
+  { icon: Send, text: 'Telegram-бот пришлёт уведомление о приближении к лимиту и совпадении прибытия.' },
+];
+
+export default async function CapabilitiesPage() {
   const usdToGelRate = await getUsdToGelRate();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
       <header>
-        <h1 className="text-lg font-medium">Как это работает</h1>
+        <h1 className="text-xl font-semibold">Что умеет Banderoli</h1>
         <p className="mt-1 text-sm text-muted">
-          Banderoli показывает реальную картину: где посылки, какова таможенная экспозиция и когда
-          наступит порог — чтобы не было сюрприз-налогов и случайных нарушений лимита.
+          Никаких сюрприз-налогов и ручных подсчётов — мы считаем стоимость покупок за вас и
+          предупреждаем заранее.
         </p>
       </header>
 
-      {/* ─── Инструкция пользователя ─────────────────────────────── */}
-      <section className="rounded-xl border border-hairline bg-surface p-5 shadow-card">
-        <h2 className="text-base font-medium">Инструкция пользователя</h2>
-        <p className="mt-0.5 text-sm text-muted">Короткий разбор основных функций.</p>
+      {/* ─── Четыре карточки-ценности ────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {BENEFITS.map((b) => {
+          const BIcon = b.icon;
+          return (
+            <div key={b.title} className="rounded-xl border border-hairline bg-surface p-4 shadow-card transition duration-200 hover:-translate-y-0.5 hover:shadow-card-hover">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-soft text-brand-dark">
+                <BIcon size={18} aria-hidden />
+              </span>
+              <div className="mt-3 text-sm font-medium">{b.title}</div>
+              <p className="mt-1 text-sm leading-relaxed text-muted">{b.body}</p>
+            </div>
+          );
+        })}
+      </div>
 
-        <div className="mt-5 space-y-5">
-          <GuideItem icon={Package} title="Добавление посылки">
-            <p>
-              Нажмите <span className="text-ink">«Добавить трек»</span> на дашборде. Укажите название
-              посылки (любая метка, удобно по получателю — «Алия1»), получателя (на кого оформляется),
-              даты покупки и ожидаемой доставки, магазин и перевозчика.
-            </p>
-            <p>
-              В разделе <span className="text-ink">«Товары в посылке»</span> добавляйте позиции
-              кнопкой «+ продукция» — название и цену каждого товара. Ниже укажите стоимость доставки,
-              вес и комментарий. Трек-номер необязателен: посылку можно завести заранее и добавить
-              трек позже.
-            </p>
-          </GuideItem>
+      {/* ─── Подробнее (свёрнуто по умолчанию) ────────────────────── */}
+      <details className="group rounded-xl border border-hairline bg-surface shadow-card">
+        <summary className="flex cursor-pointer items-center justify-between gap-2 px-5 py-4 text-sm font-medium">
+          Подробнее: правила, лимиты и расчёты
+          <ChevronDown size={16} aria-hidden className="text-muted transition group-open:rotate-180" />
+        </summary>
 
-          <GuideItem icon={Camera} title="Заполнение из скриншота">
-            <p>
-              В форме есть кнопка <span className="text-ink">«Заполнить из скриншота»</span>. Сделайте
-              скриншот корзины магазина (клавишами Ctrl + / Ctrl −, чтобы вся корзина поместилась на
-              экране) и перетащите его в окно — ИИ распознает магазин, товары, цены и доставку и
-              заполнит форму.
-            </p>
-            <p>Перед сохранением обязательно сверьте распознанные данные с корзиной.</p>
-          </GuideItem>
+        <div className="space-y-6 border-t border-hairline px-5 py-5">
+          {/* Логика расчёта */}
+          <div>
+            <h3 className="text-sm font-medium">Как считается стоимость и лимит</h3>
+            <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted">
+              <p>
+                Стоимость посылки = <span className="text-ink">сумма цен всех товаров + стоимость
+                доставки</span>. Доставка тоже входит в таможенный лимит. Сумма переводится в лари по
+                официальному курсу Нацбанка Грузии (nbg.gov.ge): сейчас{' '}
+                <span className="text-ink">1 USD ≈ {usdToGelRate.toFixed(4)} GEL</span>.
+              </p>
+              <p>
+                Лимит считается по каждому получателю и по дню ожидаемого прибытия. На дашборде
+                барометр экспозиции и прогресс-бар лимита 0–300 GEL краснеют по мере приближения, а
+                блок «Получатели у лимита» подсказывает, у кого мало запаса.
+              </p>
+            </div>
+          </div>
 
-          <GuideItem icon={Users} title="Получатели — зачем и как">
-            <p>
-              Беспошлинный лимит 300 GEL действует на <span className="text-ink">каждого
-              получателя отдельно</span>. Получатели — это реальные физлица (вы и ваши близкие), на
-              которых приходят их собственные покупки.
-            </p>
-            <p>
-              Добавляйте и редактируйте получателей в <span className="text-ink">Настройках</span>.
-              При добавлении посылки честно выбирайте, на кого она оформлена, — так Banderoli
-              правильно считает лимит каждого.
-            </p>
-          </GuideItem>
-
-          <GuideItem icon={Store} title="Магазины и перевозчики">
-            <p>
-              Списки магазинов и перевозчиков ведутся в <span className="text-ink">Настройках</span>.
-              Они появляются подсказками в форме посылки — чтобы не вводить названия вручную и держать
-              аналитику аккуратной.
-            </p>
-          </GuideItem>
-
-          <GuideItem icon={Calculator} title="Как считается стоимость и лимит">
-            <p>
-              Стоимость посылки = <span className="text-ink">сумма цен всех товаров + стоимость
-              доставки</span>. Доставка тоже входит в таможенный лимит. Сумма переводится в лари по
-              официальному курсу Нацбанка Грузии (nbg.gov.ge): сейчас{' '}
-              <span className="text-ink">1 USD ≈ {usdToGelRate.toFixed(4)} GEL</span>.
-            </p>
-            <p>
-              Лимит считается по каждому получателю и по дню ожидаемого прибытия: посылки одному
-              получателю в один операционный день суммируются. Если в сумме больше 300 GEL — вероятен
-              НДС 18% и пошлина на всю стоимость, а не только на превышение.
-            </p>
-            <p>
-              На дашборде это видно: барометр экспозиции и прогресс-бар лимита 0–300 GEL краснеют по
-              мере приближения, а блок «Получатели у лимита» подсказывает, у кого мало запаса.
-            </p>
-          </GuideItem>
-
-          <GuideItem icon={Truck} title="Трекинг посылок">
-            <p>
-              Если у посылки указан трек-номер, кнопка <span className="text-ink">«Проверить
-              статус»</span> на карточке покажет реальный статус доставки (через Ship24, 1000+
-              перевозчиков).
-            </p>
-          </GuideItem>
-
-          <GuideItem icon={Sparkles} title="ИИ функции">
-            <p>
-              На странице <span className="text-ink">«ИИ функции»</span> — поиск и сводка отзывов о
-              товаре по ссылке и подбор товара по описанию. Плюс распознавание скриншота корзины прямо
-              в форме посылки.
-            </p>
-            <p>Все ИИ-функции бесплатны до 10 запросов в день (общий дневной счётчик).</p>
-          </GuideItem>
-
-          <GuideItem icon={Send} title="Telegram-уведомления">
-            <p>
-              В <span className="text-ink">Настройках</span> можно открыть Telegram-бота и указать
-              Telegram в профиле получателя. Бот присылает уведомления о таможенной экспозиции —
-              приближении к лимиту и совместном прибытии посылок.
-            </p>
-          </GuideItem>
-        </div>
-      </section>
-
-      {/* ─── Правила ввоза ───────────────────────────────────────── */}
-      <section>
-        <h2 className="text-base font-medium">Правила ввоза</h2>
-        <p className="mt-0.5 text-sm text-muted">
-          Нормы Службы доходов Грузии (rs.ge) для международных почтовых отправлений личного
-          пользования.
-        </p>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {RULES.map((rule) => {
-            const RuleIcon = rule.icon;
-            return (
-              <div key={rule.title} className="rounded-xl border border-hairline bg-surface p-4 shadow-card">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-soft text-brand-dark">
-                    <RuleIcon size={16} aria-hidden />
-                  </span>
-                  <div>
-                    <div className="text-sm font-medium">{rule.title}</div>
-                    <div className="text-xs text-brand-dark">{rule.limit}</div>
+          {/* Частые вопросы */}
+          <div>
+            <h3 className="text-sm font-medium">Можно или нельзя — частые вопросы</h3>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {QUESTIONS.map((item) => {
+                const QIcon = item.icon;
+                return (
+                  <div key={item.q} className="rounded-lg border border-hairline bg-canvas p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-soft text-brand-dark">
+                        <QIcon size={14} aria-hidden />
+                      </span>
+                      <div className="text-sm font-medium">{item.q}</div>
+                    </div>
+                    <p className="mt-2 text-sm leading-relaxed text-muted">{item.a}</p>
                   </div>
-                </div>
-                <p className="mt-3 text-sm leading-relaxed text-muted">{rule.consequence}</p>
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+            <p className="mt-3 flex gap-2 rounded-lg bg-medium-soft p-3 text-xs leading-relaxed text-medium">
+              <AlertTriangle size={15} aria-hidden className="mt-0.5 shrink-0" />
+              Высокая частота ввоза может трактоваться инспектором как коммерческая деятельность.
+              Banderoli информирует о факторах экспозиции и ваших обязанностях — решение и
+              ответственность остаются за вами.
+            </p>
+          </div>
 
-        <div className="mt-3 flex gap-2 rounded-xl border border-hairline bg-medium-soft p-4 text-sm leading-relaxed text-medium shadow-card">
-          <AlertTriangle size={18} aria-hidden className="mt-0.5 shrink-0" />
-          <p>
-            Высокая частота ввоза может трактоваться инспектором как коммерческая деятельность.
-            Banderoli информирует о факторах экспозиции и ваших обязанностях — окончательное решение
-            и ответственность остаются за вами.
-          </p>
-        </div>
-      </section>
+          {/* Подсказки по функциям */}
+          <div>
+            <h3 className="text-sm font-medium">Подсказки</h3>
+            <ul className="mt-2 space-y-2">
+              {TIPS.map((tip) => {
+                const TIcon = tip.icon;
+                return (
+                  <li key={tip.text} className="flex gap-2.5 text-sm leading-relaxed text-muted">
+                    <TIcon size={15} aria-hidden className="mt-0.5 shrink-0 text-brand-dark" />
+                    <span>{tip.text}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
 
-      {/* ─── Отказ от ответственности ────────────────────────────── */}
-      <section className="rounded-xl border border-hairline bg-high-soft p-5 shadow-card">
-        <div className="flex items-center gap-2">
-          <AlertTriangle size={18} aria-hidden className="shrink-0 text-high" />
-          <h2 className="text-base font-medium text-high">Отказ от ответственности</h2>
+          {/* Отказ от ответственности */}
+          <div className="rounded-lg border border-hairline bg-high-soft p-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} aria-hidden className="shrink-0 text-high" />
+              <h3 className="text-sm font-medium text-high">Отказ от ответственности</h3>
+            </div>
+            <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted">
+              <p>
+                Banderoli — информационный сервис. Он показывает оценку вашей налоговой экспозиции и
+                остаток беспошлинного лимита, но не является юридической или налоговой консультацией
+                и не заменяет официальные нормы.
+              </p>
+              <p>
+                Расчёты приблизительные: курс валют, коды ТН ВЭД и решение таможенного инспектора
+                могут отличаться. Окончательное решение, декларирование и уплата налогов остаются
+                вашей ответственностью. Актуальные правила — на сайте Службы доходов Грузии (rs.ge).
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted">
-          <p>
-            Banderoli — информационный сервис. Он показывает оценку вашей налоговой экспозиции и
-            остаток беспошлинного лимита, но не является юридической или налоговой консультацией и не
-            заменяет официальные нормы.
-          </p>
-          <p>
-            Расчёты приблизительные: курс валют, коды ТН ВЭД и решение таможенного инспектора могут
-            отличаться от оценки. Окончательное решение, декларирование и уплата налогов остаются вашей
-            ответственностью.
-          </p>
-          <p>
-            Актуальные правила — на официальном сайте Службы доходов Грузии (rs.ge).
-          </p>
-        </div>
-      </section>
+      </details>
     </div>
   );
 }

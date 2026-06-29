@@ -36,7 +36,7 @@ const SECTIONS: Array<{ title?: string; items: NavEntry[] }> = [
   },
   {
     title: 'Справка',
-    items: [{ label: 'Как это работает', icon: BookOpen, href: '/dashboard/rules' }],
+    items: [{ label: 'Возможности', icon: BookOpen, href: '/dashboard/rules' }],
   },
 ];
 

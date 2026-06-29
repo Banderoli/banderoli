@@ -90,8 +90,12 @@ export function AddParcelForm({
               </button>
             </div>
 
-            <div className="mb-3">
-              <CartScreenshotImport onExtract={handleExtract} />
+            <CartScreenshotImport onExtract={handleExtract} />
+
+            <div className="my-4 flex items-center gap-3">
+              <div className="h-px flex-1 bg-hairline" />
+              <span className="shrink-0 text-xs text-muted">или заполните вручную</span>
+              <div className="h-px flex-1 bg-hairline" />
             </div>
 
             <form key={formKey} action={formAction} className="space-y-2.5">
