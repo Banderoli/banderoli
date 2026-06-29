@@ -3,14 +3,14 @@ import { chartColor } from '@/lib/chart-colors';
 
 // Донат с цветными секторами: доля каждого получателя по сумме расходов.
 export function DonutChart({ title, buckets }: { title: string; buckets: AnalyticsBucket[] }) {
-  const total = buckets.reduce((sum, b) => sum + b.valueUsd, 0);
+  const total = buckets.reduce((sum, b) => sum + b.valueGel, 0);
 
   let cumulative = 0;
   const slices = buckets.map((bucket, index) => {
-    const pct = total > 0 ? (bucket.valueUsd / total) * 100 : 0;
+    const pct = total > 0 ? (bucket.valueGel / total) * 100 : 0;
     const slice = {
       label: bucket.label,
-      valueUsd: bucket.valueUsd,
+      valueGel: bucket.valueGel,
       count: bucket.count,
       color: chartColor(index),
       pct,
@@ -44,11 +44,11 @@ export function DonutChart({ title, buckets }: { title: string; buckets: Analyti
                 strokeLinecap="butt"
               />
             ))}
-            <text x="18" y="17.5" textAnchor="middle" className="fill-ink text-[5px] font-semibold">
-              ${total}
+            <text x="18" y="17.5" textAnchor="middle" className="fill-ink text-[4px] font-semibold">
+              {total}
             </text>
             <text x="18" y="22" textAnchor="middle" className="fill-muted text-[2.6px]">
-              всего
+              GEL
             </text>
           </svg>
 

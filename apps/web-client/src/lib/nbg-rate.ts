@@ -1,8 +1,21 @@
 import 'server-only';
-import { USD_TO_GEL_RATE } from '@banderoli/contracts';
+import { PARCEL_CURRENCIES, USD_TO_GEL_RATE, type ParcelCurrency } from '@banderoli/contracts';
 
-const NBG_URL =
-  'https://nbg.gov.ge/gw/api/ct/monetarypolicy/currencies/en/json/?currencies=USD';
+const NBG_URL = 'https://nbg.gov.ge/gw/api/ct/monetarypolicy/currencies/en/json/';
+
+// Коды, которые тянем из НБГ (GEL не котируется — это базовая валюта, курс 1).
+const NBG_CODES: Exclude<ParcelCurrency, 'GEL'>[] = ['USD', 'EUR', 'TRY', 'CNY'];
+
+export type GelRates = Record<ParcelCurrency, number>;
+
+// Фолбэк-курсы (1 единица валюты → GEL), если НБГ недоступен.
+const FALLBACK_RATES: GelRates = {
+  USD: USD_TO_GEL_RATE,
+  EUR: 3.0,
+  TRY: 0.057,
+  CNY: 0.38,
+  GEL: 1,
+};
 
 interface NbgCurrency {
   code?: string;
@@ -14,24 +27,42 @@ interface NbgEntry {
   currencies?: NbgCurrency[];
 }
 
-// Актуальный курс USD→GEL по официальным данным Нацбанка Грузии (nbg.gov.ge).
-// Кэш 1 ч (НБГ обновляет курс раз в рабочий день); при недоступности — фолбэк-константа.
-export async function getUsdToGelRate(): Promise<number> {
+// Актуальные курсы валют → GEL по официальным данным Нацбанка Грузии (nbg.gov.ge).
+// Кэш 1 ч. Важно: rate указан за `quantity` единиц (напр. CNY — за 10), нормируем к 1.
+export async function getGelRates(): Promise<GelRates> {
   try {
     const response = await fetch(NBG_URL, { next: { revalidate: 3600 } });
     if (!response.ok) {
-      return USD_TO_GEL_RATE;
+      return FALLBACK_RATES;
     }
     const json = (await response.json()) as NbgEntry[];
-    const usd = json?.[0]?.currencies?.find((c) => c.code === 'USD');
-    const rate = usd?.rate;
-    const quantity = usd?.quantity ?? 1;
-    if (typeof rate === 'number' && rate > 0 && quantity > 0) {
-      // rate указан за `quantity` единиц валюты → нормируем к 1 USD.
-      return Math.round((rate / quantity) * 10000) / 10000;
+    const list = json?.[0]?.currencies ?? [];
+    const rates: GelRates = { ...FALLBACK_RATES };
+    for (const code of NBG_CODES) {
+      const found = list.find((c) => c.code === code);
+      const rate = found?.rate;
+      const quantity = found?.quantity ?? 1;
+      if (typeof rate === 'number' && rate > 0 && quantity > 0) {
+        rates[code] = Math.round((rate / quantity) * 100000) / 100000;
+      }
     }
-    return USD_TO_GEL_RATE;
+    return rates;
   } catch {
-    return USD_TO_GEL_RATE;
+    return FALLBACK_RATES;
   }
+}
+
+export function isParcelCurrency(value: string | null | undefined): value is ParcelCurrency {
+  return !!value && (PARCEL_CURRENCIES as readonly string[]).includes(value);
+}
+
+// Сумма в валюте → GEL. Неизвестная валюта трактуется как USD.
+export function convertToGel(amount: number, currency: string, rates: GelRates): number {
+  const rate = isParcelCurrency(currency) ? rates[currency] : rates.USD;
+  return amount * rate;
+}
+
+// Совместимость со страницами, которым нужен только курс USD.
+export async function getUsdToGelRate(): Promise<number> {
+  return (await getGelRates()).USD;
 }

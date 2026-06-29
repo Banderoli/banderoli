@@ -8,7 +8,7 @@ import { BarList } from '@/components/BarList';
 import { DonutChart } from '@/components/DonutChart';
 import { ColumnChart } from '@/components/ColumnChart';
 import { WeatherWidget } from '@/components/WeatherWidget';
-import { formatGel, formatUsd } from '@/lib/format';
+import { formatGel } from '@/lib/format';
 
 export default async function AnalyticsPage() {
   const session = await auth();
@@ -31,8 +31,8 @@ export default async function AnalyticsPage() {
       <div className="mt-6 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
         <MetricCard
           label="Всего потрачено"
-          value={formatUsd(analytics.totalUsd)}
-          sub={`≈ ${formatGel(analytics.totalGel)}`}
+          value={formatGel(analytics.totalGel)}
+          sub="в лари, по всем валютам"
         />
         <MetricCard label="Посылок" value={String(analytics.totalParcels)} />
         <MetricCard label="Доставлено" value={String(analytics.deliveredCount)} />

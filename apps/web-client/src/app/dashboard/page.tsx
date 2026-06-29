@@ -9,8 +9,8 @@ import { AddParcelForm } from '@/components/AddParcelForm';
 import { RecipientSwitcher } from '@/components/RecipientSwitcher';
 import { loadDashboard } from '@/lib/dashboard';
 import { listCarriers, listParcels, listStores, loadRecipientsExposure } from '@/lib/api';
-import { getUsdToGelRate } from '@/lib/nbg-rate';
-import { formatGel, formatUsd } from '@/lib/format';
+import { getGelRates } from '@/lib/nbg-rate';
+import { formatGel } from '@/lib/format';
 
 export default async function DashboardPage({
   searchParams,
@@ -23,14 +23,14 @@ export default async function DashboardPage({
   }
 
   const { recipient } = await searchParams;
-  const [{ data, demo }, allParcels, stores, carriers, recipientsExposure, usdToGelRate] =
+  const [{ data, demo }, allParcels, stores, carriers, recipientsExposure, rates] =
     await Promise.all([
       loadDashboard(session.user.id, recipient),
       listParcels(session.user.id),
       listStores(session.user.id),
       listCarriers(session.user.id),
       loadRecipientsExposure(session.user.id),
-      getUsdToGelRate(),
+      getGelRates(),
     ]);
   const { exposure } = data;
   // Список на дашборде показывает посылки всех получателей; в демо-режиме — мок-данные.
@@ -55,7 +55,7 @@ export default async function DashboardPage({
             selectedRecipientId={data.selectedRecipientId}
             stores={stores}
             carriers={carriers}
-            usdToGelRate={usdToGelRate}
+            rates={rates}
           />
         </div>
 
@@ -69,8 +69,8 @@ export default async function DashboardPage({
           />
           <MetricCard
             label="Потрачено в этом месяце"
-            value={formatUsd(data.metrics.spentUsd)}
-            sub={`≈ ${formatGel(data.metrics.spentGel)}`}
+            value={formatGel(data.metrics.spentGel)}
+            sub="в лари, по всем валютам"
           />
           <MetricCard label="Экспозиция" value={exposure.level} sub="по получателю" accent={exposureAccent} />
         </div>

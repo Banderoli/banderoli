@@ -168,7 +168,9 @@ model Parcel {
   carrier              String?
   store                String?
   description          String?       // комментарий пользователя
-  // declaredValueUsd/Gel — денормализованный итог: Σ цен позиций + стоимость доставки.
+  currency             String        @default("USD") // валюта ввода (USD/EUR/TRY/CNY/GEL)
+  // declaredValueUsd/Gel — денормализованный итог в валюте посылки и в лари соответственно:
+  // declaredValueUsd = Σ цен позиций + доставка (в `currency`); declaredValueGel = он же × курс НБГ.
   declaredValueUsd     Decimal?      @db.Decimal(10, 2)
   declaredValueGel     Decimal?      @db.Decimal(10, 2)
   shippingCostUsd      Decimal?      @db.Decimal(10, 2)

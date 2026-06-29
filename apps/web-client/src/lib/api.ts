@@ -29,7 +29,7 @@ import {
 } from '@banderoli/customs-exposure-engine';
 import { estimateEta } from '@banderoli/flight-intelligence';
 import { extractCartFromImage, type CartExtraction } from './cart-vision';
-import { getUsdToGelRate } from './nbg-rate';
+import { convertToGel, getGelRates } from './nbg-rate';
 
 const ACTIVE_STATUSES: Parcel['status'][] = [
   'PENDING',
@@ -74,6 +74,7 @@ function serializeParcel(p: Parcel & { items?: ParcelItem[] }): ParcelResponse {
     carrier: p.carrier,
     store: p.store,
     description: p.description,
+    currency: p.currency ?? 'USD',
     items: (p.items ?? []).map((it) => ({
       id: it.id,
       name: it.name,
@@ -245,6 +246,7 @@ export interface CreateParcelBody {
   carrier?: string;
   store?: string;
   description?: string;
+  currency?: string;
   items?: ParcelItemBody[];
   shippingCostUsd?: number;
   declaredValueUsd?: number;
@@ -329,9 +331,10 @@ export async function createParcel(
   const items = body.items ?? [];
   const shippingCostUsd = body.shippingCostUsd ?? null;
   const declaredValueUsd = computeDeclaredUsd(items, shippingCostUsd, body.declaredValueUsd ?? null);
-  const rate = await getUsdToGelRate();
+  const currency = body.currency ?? 'USD';
+  const rates = await getGelRates();
   const declaredValueGel =
-    declaredValueUsd === null ? null : round2(declaredValueUsd * rate);
+    declaredValueUsd === null ? null : round2(convertToGel(declaredValueUsd, currency, rates));
   // Кол-во позиций — маркер однородности для движка экспозиции.
   const quantity = items.length > 0 ? items.length : (body.quantity ?? 1);
   // Ожидаемую доставку движок экспозиции группирует по дням — берём ручную дату,
@@ -348,6 +351,7 @@ export async function createParcel(
       carrier: body.carrier ?? null,
       store: body.store ?? null,
       description: body.description ?? null,
+      currency,
       declaredValueUsd,
       declaredValueGel,
       shippingCostUsd,
@@ -405,6 +409,7 @@ export interface UpdateParcelBody {
   carrier?: string | null;
   store?: string | null;
   description?: string | null;
+  currency?: string;
   items?: ParcelItemBody[];
   shippingCostUsd?: number | null;
   declaredValueUsd?: number | null;
@@ -436,6 +441,7 @@ export async function updateParcel(
   if (body.weightKg !== undefined) data.weightKg = body.weightKg;
   if (body.quantity !== undefined) data.quantity = body.quantity;
   if (body.shippingCostUsd !== undefined) data.shippingCostUsd = body.shippingCostUsd;
+  if (body.currency !== undefined) data.currency = body.currency;
   if (body.purchasedAt !== undefined) {
     data.purchasedAt = body.purchasedAt ? new Date(body.purchasedAt) : null;
   }
@@ -443,25 +449,27 @@ export async function updateParcel(
     data.estimatedArrival = body.estimatedArrival ? new Date(body.estimatedArrival) : null;
   }
 
-  // Пересчёт итога, если изменились позиции, доставка или legacy-цена.
+  // Пересчёт итога, если изменились позиции, доставка, валюта или legacy-цена.
   if (
     body.items !== undefined ||
     body.shippingCostUsd !== undefined ||
-    body.declaredValueUsd !== undefined
+    body.declaredValueUsd !== undefined ||
+    body.currency !== undefined
   ) {
     const finalItems =
       body.items ?? existing.items.map((it) => ({ name: it.name, priceUsd: it.priceUsd.toNumber() }));
     const finalShipping =
       body.shippingCostUsd !== undefined ? body.shippingCostUsd : toNumber(existing.shippingCostUsd);
+    const finalCurrency = body.currency ?? existing.currency;
     const declaredValueUsd = computeDeclaredUsd(
       finalItems,
       finalShipping,
       body.declaredValueUsd ?? toNumber(existing.declaredValueUsd),
     );
     data.declaredValueUsd = declaredValueUsd;
-    const rate = await getUsdToGelRate();
+    const rates = await getGelRates();
     data.declaredValueGel =
-      declaredValueUsd === null ? null : round2(declaredValueUsd * rate);
+      declaredValueUsd === null ? null : round2(convertToGel(declaredValueUsd, finalCurrency, rates));
     if (body.items !== undefined && finalItems.length > 0) {
       data.quantity = finalItems.length;
     }

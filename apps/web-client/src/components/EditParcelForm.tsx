@@ -2,8 +2,9 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { Pencil, X } from 'lucide-react';
-import type { ParcelResponse } from '@banderoli/contracts';
+import { PARCEL_CURRENCIES, type ParcelResponse } from '@banderoli/contracts';
 import { updateParcelAction, type ParcelFormState } from '@/app/parcel-actions';
+import { currencySymbol } from '@/lib/format';
 import { ParcelItemsEditor } from './ParcelItemsEditor';
 
 const INITIAL: ParcelFormState = {};
@@ -13,6 +14,8 @@ const inputClass =
 export function EditParcelForm({ parcel }: { parcel: ParcelResponse }) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState(updateParcelAction, INITIAL);
+  const [currency, setCurrency] = useState(parcel.currency || 'USD');
+  const symbol = currencySymbol(currency);
 
   useEffect(() => {
     if (state.ok) {
@@ -70,12 +73,23 @@ export function EditParcelForm({ parcel }: { parcel: ParcelResponse }) {
               <input name="store" defaultValue={parcel.store ?? ''} placeholder="Магазин" className={inputClass} />
               <input name="carrier" defaultValue={parcel.carrier ?? ''} placeholder="Перевозчик" className={inputClass} />
 
-              <ParcelItemsEditor defaultItems={parcel.items} />
+              <label className="block">
+                <span className="mb-1 block text-xs text-muted">Валюта цен</span>
+                <select name="currency" value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}>
+                  {PARCEL_CURRENCIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c} {currencySymbol(c)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <ParcelItemsEditor defaultItems={parcel.items} currencySymbol={symbol} />
 
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Стоимость доставки ($)</span>
-                  <input name="shippingCostUsd" type="number" min="0" step="0.01" defaultValue={parcel.shippingCostUsd ?? ''} placeholder="$ доставка" className={inputClass} />
+                  <span className="mb-1 block text-xs text-muted">Стоимость доставки ({symbol})</span>
+                  <input name="shippingCostUsd" type="number" min="0" step="0.01" defaultValue={parcel.shippingCostUsd ?? ''} placeholder={`${symbol} доставка`} className={inputClass} />
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs text-muted">Вес (кг)</span>

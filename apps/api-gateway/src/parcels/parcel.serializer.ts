@@ -11,6 +11,7 @@ export function serializeParcel(parcel: Parcel & { items?: ParcelItem[] }): Parc
     carrier: parcel.carrier,
     store: parcel.store,
     description: parcel.description,
+    currency: parcel.currency ?? 'USD',
     items: (parcel.items ?? []).map((item) => ({
       id: item.id,
       name: item.name,

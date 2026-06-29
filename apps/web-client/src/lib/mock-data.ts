@@ -32,6 +32,7 @@ const parcels: ParcelResponse[] = [
   {
     id: 'p_nike',
     recipientProfileId: 'rec_demo',
+    currency: 'USD',
     trackingNumber: '9400111899223',
     carrier: 'USPS',
     store: 'ASOS',
@@ -54,6 +55,7 @@ const parcels: ParcelResponse[] = [
   {
     id: 'p_fenty',
     recipientProfileId: 'rec_demo',
+    currency: 'USD',
     trackingNumber: '7749003311',
     carrier: 'FedEx',
     store: 'Sephora',
@@ -76,6 +78,7 @@ const parcels: ParcelResponse[] = [
   {
     id: 'p_books',
     recipientProfileId: 'rec_demo',
+    currency: 'USD',
     trackingNumber: '1234556677',
     carrier: 'DHL',
     store: 'Book Depository',
@@ -102,6 +105,7 @@ const parcels: ParcelResponse[] = [
   {
     id: 'p_sony',
     recipientProfileId: 'rec_demo',
+    currency: 'USD',
     trackingNumber: '1Z999AA10123',
     carrier: 'UPS',
     store: 'Amazon',

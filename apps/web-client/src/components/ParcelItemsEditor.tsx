@@ -15,8 +15,10 @@ const rowInput =
 // с массивом [{ name, price }]; сервер пересчитает итог (Σ позиций + доставка).
 export function ParcelItemsEditor({
   defaultItems,
+  currencySymbol = '$',
 }: {
   defaultItems?: { name: string; priceUsd: number }[];
+  currencySymbol?: string;
 }) {
   const [rows, setRows] = useState<ItemRow[]>(
     defaultItems && defaultItems.length > 0
@@ -68,7 +70,7 @@ export function ParcelItemsEditor({
             type="number"
             min="0"
             step="0.01"
-            placeholder="$ цена"
+            placeholder={`${currencySymbol} цена`}
             aria-label="Цена товара"
             className={`w-24 ${rowInput}`}
           />
@@ -85,7 +87,11 @@ export function ParcelItemsEditor({
       ))}
 
       <div className="flex justify-end text-xs text-muted">
-        Сумма товаров: <span className="ml-1 font-medium text-ink">${itemsTotal.toFixed(2)}</span>
+        Сумма товаров:{' '}
+        <span className="ml-1 font-medium text-ink">
+          {currencySymbol}
+          {itemsTotal.toFixed(2)}
+        </span>
       </div>
     </div>
   );

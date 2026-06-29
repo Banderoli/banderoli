@@ -6,7 +6,7 @@ import { auth } from '@/auth';
 import { getParcel } from '@/lib/api';
 import { PARCEL_STATUS_META } from '@/lib/parcel-status';
 import { ParcelComposition } from '@/components/ParcelComposition';
-import { formatGel, formatShortDate, formatUsd } from '@/lib/format';
+import { formatGel, formatMoney, formatShortDate } from '@/lib/format';
 
 function statusLabel(status: string): string {
   return PARCEL_STATUS_META[status as ParcelStatus]?.label ?? status;
@@ -62,7 +62,7 @@ export default async function ParcelDetailPage({ params }: { params: Promise<{ i
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <Field label="Стоимость" value={formatUsd(parcel.declaredValueUsd)} />
+          <Field label="Стоимость" value={formatMoney(parcel.declaredValueUsd, parcel.currency)} />
           <Field
             label="В лари"
             value={parcel.declaredValueGel !== null ? formatGel(parcel.declaredValueGel) : '—'}

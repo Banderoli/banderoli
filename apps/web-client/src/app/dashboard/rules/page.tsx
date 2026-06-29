@@ -13,7 +13,7 @@ import {
   Truck,
   Weight,
 } from 'lucide-react';
-import { getUsdToGelRate } from '@/lib/nbg-rate';
+import { getGelRates } from '@/lib/nbg-rate';
 
 type Icon = ComponentType<{ size?: number; 'aria-hidden'?: boolean; className?: string }>;
 
@@ -73,7 +73,7 @@ const TIPS: { icon: Icon; text: string }[] = [
 ];
 
 export default async function CapabilitiesPage() {
-  const usdToGelRate = await getUsdToGelRate();
+  const rates = await getGelRates();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
@@ -115,9 +115,16 @@ export default async function CapabilitiesPage() {
             <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted">
               <p>
                 Стоимость посылки = <span className="text-ink">сумма цен всех товаров + стоимость
-                доставки</span>. Доставка тоже входит в таможенный лимит. Сумма переводится в лари по
-                официальному курсу Нацбанка Грузии (nbg.gov.ge): сейчас{' '}
-                <span className="text-ink">1 USD ≈ {usdToGelRate.toFixed(4)} GEL</span>.
+                доставки</span>. Доставка тоже входит в таможенный лимит. Цены можно вводить в
+                USD, EUR, TRY, CNY или GEL — сумма переводится в лари по официальному курсу Нацбанка
+                Грузии (nbg.gov.ge) для выбранной валюты.
+              </p>
+              <p className="text-xs">
+                Сейчас:{' '}
+                <span className="text-ink">
+                  1 USD ≈ {rates.USD.toFixed(4)} · 1 EUR ≈ {rates.EUR.toFixed(4)} · 1 TRY ≈{' '}
+                  {rates.TRY.toFixed(4)} · 1 CNY ≈ {rates.CNY.toFixed(4)} GEL
+                </span>.
               </p>
               <p>
                 Лимит считается по каждому получателю и по дню ожидаемого прибытия. На дашборде

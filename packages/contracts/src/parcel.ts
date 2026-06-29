@@ -12,6 +12,12 @@ export const ParcelStatusSchema = z.enum([
 
 export type ParcelStatus = z.infer<typeof ParcelStatusSchema>;
 
+// Валюты, в которых пользователь вводит цены посылки. Конвертация в GEL —
+// по официальному курсу Нацбанка Грузии (GEL — нулевая конвертация).
+export const PARCEL_CURRENCIES = ['USD', 'EUR', 'TRY', 'CNY', 'GEL'] as const;
+export const ParcelCurrencySchema = z.enum(PARCEL_CURRENCIES);
+export type ParcelCurrency = z.infer<typeof ParcelCurrencySchema>;
+
 export const ParcelItemInputSchema = z.object({
   name: z.string().min(1).max(120).trim(),
   priceUsd: z.number().nonnegative().max(100_000),
@@ -26,6 +32,7 @@ export const CreateParcelSchema = z.object({
   carrier: z.string().max(50).trim().optional(),
   store: z.string().max(100).trim().optional(),
   description: z.string().max(500).trim().optional(),
+  currency: ParcelCurrencySchema.optional().default('USD'),
   items: z.array(ParcelItemInputSchema).max(50).optional(),
   shippingCostUsd: z.number().nonnegative().max(100_000).optional(),
   declaredValueUsd: z.number().positive().max(100_000).optional(),
@@ -59,6 +66,7 @@ export const ParcelResponseSchema = z.object({
   carrier: z.string().nullable(),
   store: z.string().nullable(),
   description: z.string().nullable(),
+  currency: z.string(),
   items: z.array(ParcelItemResponseSchema),
   declaredValueUsd: z.number().nullable(),
   declaredValueGel: z.number().nullable(),

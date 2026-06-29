@@ -13,6 +13,12 @@ import {
   type ParcelItemBody,
 } from '@/lib/api';
 import { checkParcelTracking } from '@/lib/ship24';
+import { PARCEL_CURRENCIES } from '@banderoli/contracts';
+
+function parseCurrency(value: FormDataEntryValue | null): string {
+  const text = typeof value === 'string' ? value.trim().toUpperCase() : '';
+  return (PARCEL_CURRENCIES as readonly string[]).includes(text) ? text : 'USD';
+}
 
 export interface ParcelFormState {
   ok?: boolean;
@@ -107,6 +113,7 @@ export async function createParcelAction(
       carrier: optionalString(formData.get('carrier')),
       store: optionalString(formData.get('store')),
       description: optionalString(formData.get('description')),
+      currency: parseCurrency(formData.get('currency')),
       items,
       shippingCostUsd: nonNegNumber(formData.get('shippingCostUsd')),
       weightKg: optionalNumber(formData.get('weightKg')),
@@ -188,6 +195,7 @@ export async function updateParcelAction(
       carrier: optionalString(formData.get('carrier')) ?? null,
       store: optionalString(formData.get('store')) ?? null,
       description: optionalString(formData.get('description')) ?? null,
+      currency: parseCurrency(formData.get('currency')),
       items: parseItems(formData.get('itemsJson')),
       shippingCostUsd: nonNegNumber(formData.get('shippingCostUsd')) ?? null,
       weightKg: optionalNumber(formData.get('weightKg')) ?? null,

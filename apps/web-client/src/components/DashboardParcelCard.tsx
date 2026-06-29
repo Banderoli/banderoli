@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react';
 import { Check, ChevronDown, Trash2, Truck, XCircle } from 'lucide-react';
 import type { ParcelResponse } from '@banderoli/contracts';
 import { PARCEL_STATUS_META, type StatusTone } from '@/lib/parcel-status';
-import { formatGel, formatShortDate, formatUsd } from '@/lib/format';
+import { formatGel, formatMoney, formatShortDate } from '@/lib/format';
 import {
   checkTrackingAction,
   deleteParcelAction,
@@ -63,7 +63,7 @@ export function DashboardParcelCard({
             {parcel.carrier ?? '—'} · {eta}
           </div>
         </div>
-        <span className="shrink-0 text-sm font-medium">{formatUsd(parcel.declaredValueUsd)}</span>
+        <span className="shrink-0 text-sm font-medium">{formatMoney(parcel.declaredValueUsd, parcel.currency)}</span>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${BADGE_TONE[meta.tone]}`}>
           {meta.label}
         </span>

@@ -1,8 +1,8 @@
 import type { ParcelResponse } from '@banderoli/contracts';
-import { formatUsd } from '@/lib/format';
+import { formatGel, formatMoney } from '@/lib/format';
 
 // Состав посылки: позиции товаров + доставка + итог.
-// Итог (declaredValueUsd) = Σ цен позиций + стоимость доставки.
+// Суммы — в валюте посылки; declaredValueGel — итог в лари по курсу НБГ.
 export function ParcelComposition({ parcel }: { parcel: ParcelResponse }) {
   const hasShipping = parcel.shippingCostUsd !== null && parcel.shippingCostUsd > 0;
   if (parcel.items.length === 0 && !hasShipping) {
@@ -16,20 +16,26 @@ export function ParcelComposition({ parcel }: { parcel: ParcelResponse }) {
         {parcel.items.map((item) => (
           <li key={item.id} className="flex justify-between gap-2">
             <span className="min-w-0 truncate">{item.name}</span>
-            <span className="shrink-0 text-muted">{formatUsd(item.priceUsd)}</span>
+            <span className="shrink-0 text-muted">{formatMoney(item.priceUsd, parcel.currency)}</span>
           </li>
         ))}
         {hasShipping ? (
           <li className="flex justify-between gap-2 text-muted">
             <span>Доставка</span>
-            <span>{formatUsd(parcel.shippingCostUsd)}</span>
+            <span>{formatMoney(parcel.shippingCostUsd, parcel.currency)}</span>
           </li>
         ) : null}
       </ul>
       <div className="mt-1.5 flex justify-between border-t border-hairline pt-1.5 text-sm font-medium">
         <span>Итого</span>
-        <span>{formatUsd(parcel.declaredValueUsd)}</span>
+        <span>{formatMoney(parcel.declaredValueUsd, parcel.currency)}</span>
       </div>
+      {parcel.currency !== 'GEL' && parcel.declaredValueGel !== null ? (
+        <div className="mt-0.5 flex justify-between text-xs text-muted">
+          <span>В лари (курс НБГ)</span>
+          <span>{formatGel(parcel.declaredValueGel)}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

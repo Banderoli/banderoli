@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ChevronDown, RotateCcw } from 'lucide-react';
 import type { ParcelResponse } from '@banderoli/contracts';
 import { PARCEL_STATUS_META, type StatusTone } from '@/lib/parcel-status';
-import { formatGel, formatShortDate, formatUsd } from '@/lib/format';
+import { formatGel, formatMoney, formatShortDate } from '@/lib/format';
 import { restoreParcelAction } from '@/app/parcel-actions';
 import { ParcelComposition } from './ParcelComposition';
 
@@ -51,7 +51,7 @@ export function ArchiveCard({
             {parcel.items.length > 0 ? ` · ${parcel.items.length} тов.` : ''}
           </div>
         </div>
-        <span className="shrink-0 text-sm font-medium">{formatUsd(parcel.declaredValueUsd)}</span>
+        <span className="shrink-0 text-sm font-medium">{formatMoney(parcel.declaredValueUsd, parcel.currency)}</span>
         <span
           className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${BADGE_TONE[meta.tone]}`}
         >
