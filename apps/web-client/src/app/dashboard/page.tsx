@@ -6,6 +6,7 @@ import { DashboardParcels } from '@/components/DashboardParcels';
 import { ExposureGauge } from '@/components/ExposureGauge';
 import { LimitBar } from '@/components/LimitBar';
 import { AddParcelForm } from '@/components/AddParcelForm';
+import { AdvisorBanner } from '@/components/AdvisorBanner';
 import { RecipientSwitcher } from '@/components/RecipientSwitcher';
 import { loadDashboard } from '@/lib/dashboard';
 import { listCarriers, listParcels, listStores, loadRecipientsExposure } from '@/lib/api';
@@ -41,6 +42,8 @@ export default async function DashboardPage({
 
   return (
     <main className="px-4 py-5 sm:px-6 sm:py-6">
+        <AdvisorBanner recipients={recipientsExposure} usdRate={rates.USD} />
+
         {demo ? (
           <div className="mb-4 flex items-center gap-2 rounded-md bg-medium-soft px-3 py-2 text-xs text-medium">
             <Info size={14} aria-hidden />
