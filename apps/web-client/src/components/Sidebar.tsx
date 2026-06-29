@@ -5,11 +5,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3,
+  BookOpen,
   LayoutDashboard,
   LogOut,
   Menu,
   PackageOpen,
-  Scale,
   Settings,
   Sparkles,
   X,
@@ -36,7 +36,7 @@ const SECTIONS: Array<{ title?: string; items: NavEntry[] }> = [
   },
   {
     title: 'Справка',
-    items: [{ label: 'Правила ввоза', icon: Scale, href: '/dashboard/rules' }],
+    items: [{ label: 'Как это работает', icon: BookOpen, href: '/dashboard/rules' }],
   },
 ];
 
