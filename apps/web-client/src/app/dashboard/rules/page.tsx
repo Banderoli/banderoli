@@ -14,6 +14,7 @@ import {
   Users,
   Weight,
 } from 'lucide-react';
+import { getUsdToGelRate } from '@/lib/nbg-rate';
 
 type Icon = ComponentType<{ size?: number; 'aria-hidden'?: boolean }>;
 
@@ -69,7 +70,9 @@ function GuideItem({ icon: Icon, title, children }: { icon: Icon; title: string;
   );
 }
 
-export default function HowItWorksPage() {
+export default async function HowItWorksPage() {
+  const usdToGelRate = await getUsdToGelRate();
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
       <header>
@@ -135,7 +138,8 @@ export default function HowItWorksPage() {
             <p>
               Стоимость посылки = <span className="text-ink">сумма цен всех товаров + стоимость
               доставки</span>. Доставка тоже входит в таможенный лимит. Сумма переводится в лари по
-              курсу ≈ 2.7 GEL за 1 USD.
+              официальному курсу Нацбанка Грузии (nbg.gov.ge): сейчас{' '}
+              <span className="text-ink">1 USD ≈ {usdToGelRate.toFixed(4)} GEL</span>.
             </p>
             <p>
               Лимит считается по каждому получателю и по дню ожидаемого прибытия: посылки одному

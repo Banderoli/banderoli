@@ -2,7 +2,6 @@
 // как библиотека. Заменяет HTTP-вызовы к NestJS-шлюзу. Всё здесь — серверное.
 import {
   AI_DAILY_LIMIT,
-  USD_TO_GEL_RATE,
   type AiQuota,
   type ExposureResult,
   type ParcelDetailResponse,
@@ -30,6 +29,7 @@ import {
 } from '@banderoli/customs-exposure-engine';
 import { estimateEta } from '@banderoli/flight-intelligence';
 import { extractCartFromImage, type CartExtraction } from './cart-vision';
+import { getUsdToGelRate } from './nbg-rate';
 
 const ACTIVE_STATUSES: Parcel['status'][] = [
   'PENDING',
@@ -329,8 +329,9 @@ export async function createParcel(
   const items = body.items ?? [];
   const shippingCostUsd = body.shippingCostUsd ?? null;
   const declaredValueUsd = computeDeclaredUsd(items, shippingCostUsd, body.declaredValueUsd ?? null);
+  const rate = await getUsdToGelRate();
   const declaredValueGel =
-    declaredValueUsd === null ? null : round2(declaredValueUsd * USD_TO_GEL_RATE);
+    declaredValueUsd === null ? null : round2(declaredValueUsd * rate);
   // Кол-во позиций — маркер однородности для движка экспозиции.
   const quantity = items.length > 0 ? items.length : (body.quantity ?? 1);
   // Ожидаемую доставку движок экспозиции группирует по дням — берём ручную дату,
@@ -458,8 +459,9 @@ export async function updateParcel(
       body.declaredValueUsd ?? toNumber(existing.declaredValueUsd),
     );
     data.declaredValueUsd = declaredValueUsd;
+    const rate = await getUsdToGelRate();
     data.declaredValueGel =
-      declaredValueUsd === null ? null : round2(declaredValueUsd * USD_TO_GEL_RATE);
+      declaredValueUsd === null ? null : round2(declaredValueUsd * rate);
     if (body.items !== undefined && finalItems.length > 0) {
       data.quantity = finalItems.length;
     }

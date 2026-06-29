@@ -24,11 +24,13 @@ export function AddParcelForm({
   selectedRecipientId,
   stores,
   carriers,
+  usdToGelRate,
 }: {
   recipients: RecipientExposure[];
   selectedRecipientId: string;
   stores: StoreResponse[];
   carriers: CarrierResponse[];
+  usdToGelRate: number;
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createParcelAction, INITIAL);
@@ -172,7 +174,8 @@ export function AddParcelForm({
               <input name="trackingNumber" placeholder="Трек-номер (если есть)" className={inputClass} />
 
               <p className="text-xs text-muted">
-                Итог = сумма товаров + доставка. Доставка тоже входит в лимит 300 GEL.
+                Курс НБ Грузии: 1 USD ≈ {usdToGelRate.toFixed(4)} GEL. Итог = сумма товаров +
+                доставка, переводится в лари по этому курсу. Доставка тоже входит в лимит 300 GEL.
               </p>
 
               {state.error ? <p className="text-xs text-high">{state.error}</p> : null}

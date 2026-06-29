@@ -9,6 +9,7 @@ import { AddParcelForm } from '@/components/AddParcelForm';
 import { RecipientSwitcher } from '@/components/RecipientSwitcher';
 import { loadDashboard } from '@/lib/dashboard';
 import { listCarriers, listParcels, listStores, loadRecipientsExposure } from '@/lib/api';
+import { getUsdToGelRate } from '@/lib/nbg-rate';
 import { formatGel, formatUsd } from '@/lib/format';
 
 export default async function DashboardPage({
@@ -22,13 +23,15 @@ export default async function DashboardPage({
   }
 
   const { recipient } = await searchParams;
-  const [{ data, demo }, allParcels, stores, carriers, recipientsExposure] = await Promise.all([
-    loadDashboard(session.user.id, recipient),
-    listParcels(session.user.id),
-    listStores(session.user.id),
-    listCarriers(session.user.id),
-    loadRecipientsExposure(session.user.id),
-  ]);
+  const [{ data, demo }, allParcels, stores, carriers, recipientsExposure, usdToGelRate] =
+    await Promise.all([
+      loadDashboard(session.user.id, recipient),
+      listParcels(session.user.id),
+      listStores(session.user.id),
+      listCarriers(session.user.id),
+      loadRecipientsExposure(session.user.id),
+      getUsdToGelRate(),
+    ]);
   const { exposure } = data;
   // Список на дашборде показывает посылки всех получателей; в демо-режиме — мок-данные.
   const parcelsForList = demo ? data.parcels : allParcels;
@@ -52,6 +55,7 @@ export default async function DashboardPage({
             selectedRecipientId={data.selectedRecipientId}
             stores={stores}
             carriers={carriers}
+            usdToGelRate={usdToGelRate}
           />
         </div>
 
