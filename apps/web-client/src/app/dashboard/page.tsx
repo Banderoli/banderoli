@@ -54,15 +54,8 @@ export default async function DashboardPage({
 
   return (
     <main className="px-4 py-5 sm:px-6 sm:py-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-4">
           <h1 className="text-lg font-medium">Дашборд</h1>
-          <AddParcelForm
-            recipients={recipientsExposure}
-            selectedRecipientId={data.selectedRecipientId}
-            storeNames={storeNames}
-            carrierNames={carrierNames}
-            rates={rates}
-          />
         </div>
 
         {demo ? (
@@ -99,6 +92,16 @@ export default async function DashboardPage({
             sub="в лари, по всем валютам"
           />
           <MetricCard label="Экспозиция" value={exposure.level} sub="по получателю" accent={exposureAccent} />
+        </div>
+
+        <div className="mb-4">
+          <AddParcelForm
+            recipients={recipientsExposure}
+            selectedRecipientId={data.selectedRecipientId}
+            storeNames={storeNames}
+            carrierNames={carrierNames}
+            rates={rates}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
