@@ -178,6 +178,18 @@
     "history": "Movement history",
     "noEvents": "No events yet"
   },
+  "auth": {
+    "loginTitle": "Sign in",
+    "registerTitle": "Register by email",
+    "loginSubtitle": "Sign in to see your parcels and customs exposure.",
+    "registerSubtitle": "Create an account with email and password.",
+    "passwordPlaceholder": "Password",
+    "wait": "Please wait…",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "noAccount": "No account?",
+    "haveAccount": "Already have an account?"
+  },
   "common": {
     "kg": "kg",
     "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { loginAction, registerAction, type AuthFormState } from '@/app/auth-actions';
 import { Logo } from '@/components/Logo';
@@ -8,6 +9,7 @@ import { Logo } from '@/components/Logo';
 const INITIAL: AuthFormState = {};
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
+  const t = useTranslations('auth');
   const isLogin = mode === 'login';
   const [state, formAction, pending] = useActionState(
     isLogin ? loginAction : registerAction,
@@ -22,12 +24,10 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         </div>
 
         <h1 className="mb-1 text-base font-medium">
-          {isLogin ? 'Вход' : 'Регистрация по почте'}
+          {isLogin ? t('loginTitle') : t('registerTitle')}
         </h1>
         <p className="mb-5 text-sm text-muted">
-          {isLogin
-            ? 'Войдите, чтобы видеть свои посылки и таможенную экспозицию.'
-            : 'Создайте аккаунт по email и паролю.'}
+          {isLogin ? t('loginSubtitle') : t('registerSubtitle')}
         </p>
 
         <form action={formAction} className="space-y-2">
@@ -43,7 +43,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
             name="password"
             type="password"
             required
-            placeholder="Пароль"
+            placeholder={t('passwordPlaceholder')}
             autoComplete={isLogin ? 'current-password' : 'new-password'}
             className="w-full rounded-md border border-hairline bg-canvas px-3 py-2 text-sm outline-none focus:border-brand"
           />
@@ -53,23 +53,23 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
             disabled={pending}
             className="w-full rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-60"
           >
-            {pending ? 'Подождите…' : isLogin ? 'Войти' : 'Зарегистрироваться'}
+            {pending ? t('wait') : isLogin ? t('signIn') : t('signUp')}
           </button>
         </form>
 
         <p className="mt-3 text-center text-xs text-muted">
           {isLogin ? (
             <>
-              Нет аккаунта?{' '}
+              {t('noAccount')}{' '}
               <Link href="/register" className="text-brand-dark underline">
-                Зарегистрироваться
+                {t('signUp')}
               </Link>
             </>
           ) : (
             <>
-              Уже есть аккаунт?{' '}
+              {t('haveAccount')}{' '}
               <Link href="/login" className="text-brand-dark underline">
-                Войти
+                {t('signIn')}
               </Link>
             </>
           )}
