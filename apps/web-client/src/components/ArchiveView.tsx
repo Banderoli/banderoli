@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { ParcelResponse } from '@banderoli/contracts';
+import type { RecipientOption } from '@/lib/mock-data';
 import { ArchiveCard } from './ArchiveCard';
 
 const TABS: Array<{ value: string; label: string }> = [
@@ -17,9 +18,15 @@ const fieldClass =
 export function ArchiveView({
   parcels,
   recipientNameById,
+  recipients,
+  storeNames,
+  carrierNames,
 }: {
   parcels: ParcelResponse[];
   recipientNameById: Record<string, string>;
+  recipients: RecipientOption[];
+  storeNames: string[];
+  carrierNames: string[];
 }) {
   // В архив попадают только терминальные посылки: доставленные и утерянные.
   const archived = useMemo(
@@ -30,20 +37,13 @@ export function ArchiveView({
   const [status, setStatus] = useState('');
   const [recipient, setRecipient] = useState('');
   const [store, setStore] = useState('');
+  const [carrier, setCarrier] = useState('');
   const [track, setTrack] = useState('');
 
+  // Полные списки (все зарегистрированные + встречающиеся), а не только из архива.
   const recipientOptions = useMemo(
-    () =>
-      [...new Set(archived.map((p) => p.recipientProfileId))].map((id) => ({
-        id,
-        name: recipientNameById[id] ?? 'Получатель',
-      })),
-    [archived, recipientNameById],
-  );
-
-  const storeOptions = useMemo(
-    () => [...new Set(archived.map((p) => p.store).filter((s): s is string => Boolean(s)))],
-    [archived],
+    () => [...recipients].sort((a, b) => a.name.localeCompare(b.name, 'ru')),
+    [recipients],
   );
 
   const query = track.trim().toLowerCase();
@@ -52,6 +52,7 @@ export function ArchiveView({
       (!status || p.status === status) &&
       (!recipient || p.recipientProfileId === recipient) &&
       (!store || p.store === store) &&
+      (!carrier || p.carrier === carrier) &&
       (!query || `${p.trackingNumber ?? ''} ${p.name ?? ''}`.toLowerCase().includes(query)),
   );
 
@@ -77,7 +78,7 @@ export function ArchiveView({
         })}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <select value={recipient} onChange={(e) => setRecipient(e.target.value)} aria-label="Получатель" className={fieldClass}>
           <option value="">Все получатели</option>
           {recipientOptions.map((r) => (
@@ -88,9 +89,17 @@ export function ArchiveView({
         </select>
         <select value={store} onChange={(e) => setStore(e.target.value)} aria-label="Магазин" className={fieldClass}>
           <option value="">Все магазины</option>
-          {storeOptions.map((s) => (
+          {storeNames.map((s) => (
             <option key={s} value={s}>
               {s}
+            </option>
+          ))}
+        </select>
+        <select value={carrier} onChange={(e) => setCarrier(e.target.value)} aria-label="Перевозчик" className={fieldClass}>
+          <option value="">Все перевозчики</option>
+          {carrierNames.map((c) => (
+            <option key={c} value={c}>
+              {c}
             </option>
           ))}
         </select>
