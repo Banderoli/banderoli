@@ -58,7 +58,71 @@
     "totalValue": "Total value",
     "totalValueSub": "active, in GEL"
   },
+  "status": {
+    "pending": "Pending",
+    "inTransit": "In transit",
+    "inCustoms": "At customs",
+    "customsCleared": "Cleared",
+    "delivered": "Delivered",
+    "returned": "Returned",
+    "exception": "Lost"
+  },
+  "card": {
+    "fallbackName": "Parcel",
+    "eta": "ETA {date}",
+    "received": "received {date}",
+    "items": "{count, plural, one {# item} other {# items}}",
+    "fieldRecipient": "Recipient",
+    "fieldStore": "Store",
+    "fieldCarrier": "Carrier",
+    "fieldTracking": "Tracking number",
+    "fieldValue": "Value",
+    "fieldWeight": "Weight",
+    "fieldStatus": "Status",
+    "fieldArrival": "Arrival",
+    "fieldDelivered": "Delivered",
+    "btnDelivered": "Delivered",
+    "btnLost": "Lost",
+    "btnCheck": "Check status",
+    "btnChecking": "Checking…",
+    "btnDelete": "Delete",
+    "btnEdit": "Edit",
+    "btnRestore": "Restore",
+    "confirmDelete": "Delete this parcel?"
+  },
+  "composition": {
+    "title": "Contents",
+    "shipping": "Shipping",
+    "total": "Total",
+    "inGel": "In GEL (NBG rate)"
+  },
+  "archive": {
+    "title": "Archive",
+    "subtitle": "All shipments: {count}. Filter by status, recipient, store, carrier or tracking code.",
+    "tabAll": "All parcels",
+    "tabLost": "Lost",
+    "tabDelivered": "Delivered",
+    "allRecipients": "All recipients",
+    "allStores": "All stores",
+    "allCarriers": "All carriers",
+    "searchTrack": "Search by tracking code",
+    "notFound": "Nothing found",
+    "recipientAria": "Recipient",
+    "storeAria": "Store",
+    "carrierAria": "Carrier",
+    "trackAria": "Tracking code"
+  },
+  "detail": {
+    "back": "Back to parcels",
+    "inGel": "In GEL",
+    "exposure": "Exposure",
+    "deliveredOn": "Delivered {date}",
+    "expectedArrival": "Expected arrival: {date}",
+    "history": "Movement history",
+    "noEvents": "No events yet"
+  },
   "common": {
-    "kg": "kg"
+    "kg": "kg",
+    "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
   }
 }

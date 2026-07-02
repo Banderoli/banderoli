@@ -2,12 +2,13 @@ import type { ParcelStatus } from '@banderoli/contracts';
 
 export type StatusTone = 'transit' | 'customs' | 'delivered' | 'neutral';
 
-export const PARCEL_STATUS_META: Record<ParcelStatus, { label: string; tone: StatusTone }> = {
-  PENDING: { label: 'Ожидает', tone: 'neutral' },
-  IN_TRANSIT: { label: 'В пути', tone: 'transit' },
-  IN_CUSTOMS: { label: 'На таможне', tone: 'customs' },
-  CUSTOMS_CLEARED: { label: 'Очищено', tone: 'transit' },
-  DELIVERED: { label: 'Доставлено', tone: 'delivered' },
-  RETURNED: { label: 'Возврат', tone: 'neutral' },
-  EXCEPTION: { label: 'Утеряно', tone: 'neutral' },
+// key — ключ в словаре status.* (сам текст переводится в UI); tone — цвет бейджа.
+export const PARCEL_STATUS_META: Record<ParcelStatus, { key: string; tone: StatusTone }> = {
+  PENDING: { key: 'pending', tone: 'neutral' },
+  IN_TRANSIT: { key: 'inTransit', tone: 'transit' },
+  IN_CUSTOMS: { key: 'inCustoms', tone: 'customs' },
+  CUSTOMS_CLEARED: { key: 'customsCleared', tone: 'transit' },
+  DELIVERED: { key: 'delivered', tone: 'delivered' },
+  RETURNED: { key: 'returned', tone: 'neutral' },
+  EXCEPTION: { key: 'exception', tone: 'neutral' },
 };

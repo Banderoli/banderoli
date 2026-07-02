@@ -58,7 +58,71 @@
     "totalValue": "საერთო ღირებულება",
     "totalValueSub": "აქტიური, ლარებში"
   },
+  "status": {
+    "pending": "ელოდება",
+    "inTransit": "გზაში",
+    "inCustoms": "საბაჟოზე",
+    "customsCleared": "გაფორმებული",
+    "delivered": "მიტანილია",
+    "returned": "დაბრუნება",
+    "exception": "დაკარგული"
+  },
+  "card": {
+    "fallbackName": "გზავნილი",
+    "eta": "ETA {date}",
+    "received": "მიღებულია {date}",
+    "items": "{count} ცალი",
+    "fieldRecipient": "მიმღები",
+    "fieldStore": "მაღაზია",
+    "fieldCarrier": "კურიერი",
+    "fieldTracking": "თრექინგ-კოდი",
+    "fieldValue": "ღირებულება",
+    "fieldWeight": "წონა",
+    "fieldStatus": "სტატუსი",
+    "fieldArrival": "ჩამოსვლა",
+    "fieldDelivered": "ჩაბარდა",
+    "btnDelivered": "მიტანილია",
+    "btnLost": "დაკარგული",
+    "btnCheck": "სტატუსის შემოწმება",
+    "btnChecking": "მოწმდება…",
+    "btnDelete": "წაშლა",
+    "btnEdit": "რედაქტირება",
+    "btnRestore": "აღდგენა",
+    "confirmDelete": "წავშალო ეს გზავნილი?"
+  },
+  "composition": {
+    "title": "შემადგენლობა",
+    "shipping": "მიწოდება",
+    "total": "ჯამი",
+    "inGel": "ლარებში (NBG კურსი)"
+  },
+  "archive": {
+    "title": "არქივი",
+    "subtitle": "ყველა გზავნილი: {count}. გაფილტრეთ სტატუსით, მიმღებით, მაღაზიით, კურიერით ან თრექინგ-კოდით.",
+    "tabAll": "ყველა გზავნილი",
+    "tabLost": "დაკარგული",
+    "tabDelivered": "მიტანილია",
+    "allRecipients": "ყველა მიმღები",
+    "allStores": "ყველა მაღაზია",
+    "allCarriers": "ყველა კურიერი",
+    "searchTrack": "ძებნა თრექინგ-კოდით",
+    "notFound": "ვერაფერი მოიძებნა",
+    "recipientAria": "მიმღები",
+    "storeAria": "მაღაზია",
+    "carrierAria": "კურიერი",
+    "trackAria": "თრექინგ-კოდი"
+  },
+  "detail": {
+    "back": "უკან გზავნილებში",
+    "inGel": "ლარებში",
+    "exposure": "ექსპოზიცია",
+    "deliveredOn": "ჩაბარდა {date}",
+    "expectedArrival": "მოსალოდნელი ჩამოსვლა: {date}",
+    "history": "გადაადგილების ისტორია",
+    "noEvents": "ჯერ არ არის მოვლენები"
+  },
   "common": {
-    "kg": "კგ"
+    "kg": "კგ",
+    "months": ["იან", "თებ", "მარ", "აპრ", "მაი", "ივნ", "ივლ", "აგვ", "სექ", "ოქტ", "ნოე", "დეკ"]
   }
 }

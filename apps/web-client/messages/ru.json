@@ -58,7 +58,71 @@
     "totalValue": "Общая стоимость",
     "totalValueSub": "активные, в лари"
   },
+  "status": {
+    "pending": "Ожидает",
+    "inTransit": "В пути",
+    "inCustoms": "На таможне",
+    "customsCleared": "Очищено",
+    "delivered": "Доставлено",
+    "returned": "Возврат",
+    "exception": "Утеряно"
+  },
+  "card": {
+    "fallbackName": "Посылка",
+    "eta": "ETA {date}",
+    "received": "получено {date}",
+    "items": "{count} тов.",
+    "fieldRecipient": "Получатель",
+    "fieldStore": "Магазин",
+    "fieldCarrier": "Перевозчик",
+    "fieldTracking": "Трек-номер",
+    "fieldValue": "Стоимость",
+    "fieldWeight": "Вес",
+    "fieldStatus": "Статус",
+    "fieldArrival": "Прибытие",
+    "fieldDelivered": "Вручено",
+    "btnDelivered": "Доставлено",
+    "btnLost": "Утеряно",
+    "btnCheck": "Проверить статус",
+    "btnChecking": "Проверяем…",
+    "btnDelete": "Удалить",
+    "btnEdit": "Редактировать",
+    "btnRestore": "Восстановить",
+    "confirmDelete": "Удалить эту посылку?"
+  },
+  "composition": {
+    "title": "Состав",
+    "shipping": "Доставка",
+    "total": "Итого",
+    "inGel": "В лари (курс НБГ)"
+  },
+  "archive": {
+    "title": "Архив",
+    "subtitle": "Все отправления: {count}. Фильтруйте по статусу, получателю, магазину, перевозчику или трек-коду.",
+    "tabAll": "Все посылки",
+    "tabLost": "Утеряно",
+    "tabDelivered": "Доставлено",
+    "allRecipients": "Все получатели",
+    "allStores": "Все магазины",
+    "allCarriers": "Все перевозчики",
+    "searchTrack": "Поиск по трек-коду",
+    "notFound": "Ничего не найдено",
+    "recipientAria": "Получатель",
+    "storeAria": "Магазин",
+    "carrierAria": "Перевозчик",
+    "trackAria": "Трек-код"
+  },
+  "detail": {
+    "back": "К списку посылок",
+    "inGel": "В лари",
+    "exposure": "Экспозиция",
+    "deliveredOn": "Вручено {date}",
+    "expectedArrival": "Ожидаемое прибытие: {date}",
+    "history": "История перемещений",
+    "noEvents": "Событий пока нет"
+  },
   "common": {
-    "kg": "кг"
+    "kg": "кг",
+    "months": ["янв.", "февр.", "мар.", "апр.", "мая", "июн.", "июл.", "авг.", "сен.", "окт.", "нояб.", "дек."]
   }
 }

@@ -1,14 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { ParcelResponse } from '@banderoli/contracts';
 import type { RecipientOption } from '@/lib/mock-data';
 import { ArchiveCard } from './ArchiveCard';
 
-const TABS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'Все посылки' },
-  { value: 'EXCEPTION', label: 'Утеряно' },
-  { value: 'DELIVERED', label: 'Доставлено' },
+const TABS: Array<{ value: string; labelKey: 'tabAll' | 'tabLost' | 'tabDelivered' }> = [
+  { value: '', labelKey: 'tabAll' },
+  { value: 'EXCEPTION', labelKey: 'tabLost' },
+  { value: 'DELIVERED', labelKey: 'tabDelivered' },
 ];
 
 // Фирменный фиолетовый стиль полей фильтра (как на дашборде).
@@ -28,6 +29,7 @@ export function ArchiveView({
   storeNames: string[];
   carrierNames: string[];
 }) {
+  const t = useTranslations('archive');
   // В архив попадают только терминальные посылки: доставленные и утерянные.
   const archived = useMemo(
     () => parcels.filter((p) => p.status === 'DELIVERED' || p.status === 'EXCEPTION'),
@@ -72,31 +74,31 @@ export function ArchiveView({
                   : 'border-hairline bg-surface text-muted hover:bg-canvas hover:text-ink'
               }`}
             >
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           );
         })}
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <select value={recipient} onChange={(e) => setRecipient(e.target.value)} aria-label="Получатель" className={fieldClass}>
-          <option value="">Все получатели</option>
+        <select value={recipient} onChange={(e) => setRecipient(e.target.value)} aria-label={t('recipientAria')} className={fieldClass}>
+          <option value="">{t('allRecipients')}</option>
           {recipientOptions.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
             </option>
           ))}
         </select>
-        <select value={store} onChange={(e) => setStore(e.target.value)} aria-label="Магазин" className={fieldClass}>
-          <option value="">Все магазины</option>
+        <select value={store} onChange={(e) => setStore(e.target.value)} aria-label={t('storeAria')} className={fieldClass}>
+          <option value="">{t('allStores')}</option>
           {storeNames.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
         </select>
-        <select value={carrier} onChange={(e) => setCarrier(e.target.value)} aria-label="Перевозчик" className={fieldClass}>
-          <option value="">Все перевозчики</option>
+        <select value={carrier} onChange={(e) => setCarrier(e.target.value)} aria-label={t('carrierAria')} className={fieldClass}>
+          <option value="">{t('allCarriers')}</option>
           {carrierNames.map((c) => (
             <option key={c} value={c}>
               {c}
@@ -106,15 +108,15 @@ export function ArchiveView({
         <input
           value={track}
           onChange={(e) => setTrack(e.target.value)}
-          placeholder="Поиск по трек-коду"
-          aria-label="Трек-код"
+          placeholder={t('searchTrack')}
+          aria-label={t('trackAria')}
           className={`${fieldClass} placeholder:text-brand-dark/50`}
         />
       </div>
 
       <div className="mt-4 space-y-2">
         {filtered.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted">Ничего не найдено</p>
+          <p className="py-8 text-center text-sm text-muted">{t('notFound')}</p>
         ) : (
           filtered.map((p) => (
             <ArchiveCard

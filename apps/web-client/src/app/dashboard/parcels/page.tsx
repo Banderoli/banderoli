@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { auth } from '@/auth';
 import { listCarriers, listParcels, listRecipients, listStores } from '@/lib/api';
 import { ArchiveView } from '@/components/ArchiveView';
@@ -10,6 +11,7 @@ export default async function ArchivePage() {
   }
 
   const userId = session.user.id;
+  const t = await getTranslations('archive');
   const [parcels, recipients, stores, carriers] = await Promise.all([
     listParcels(userId).catch(() => []),
     listRecipients(userId).catch(() => []),
@@ -35,11 +37,8 @@ export default async function ArchivePage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8">
-      <h1 className="text-lg font-medium">Архив</h1>
-      <p className="mt-1 mb-6 text-sm text-muted">
-        Все отправления: {parcels.length}. Фильтруйте по статусу, получателю, магазину, перевозчику
-        или трек-коду.
-      </p>
+      <h1 className="text-lg font-medium">{t('title')}</h1>
+      <p className="mt-1 mb-6 text-sm text-muted">{t('subtitle', { count: parcels.length })}</p>
 
       <ArchiveView
         parcels={parcels}

@@ -1,10 +1,12 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Check, ChevronDown, Trash2, Truck, XCircle } from 'lucide-react';
 import type { ParcelResponse } from '@banderoli/contracts';
 import { PARCEL_STATUS_META, type StatusTone } from '@/lib/parcel-status';
-import { formatGel, formatMoney, formatShortDate } from '@/lib/format';
+import { formatGel, formatMoney } from '@/lib/format';
+import { formatDay } from '@/lib/format-day';
 import {
   checkTrackingAction,
   deleteParcelAction,
@@ -43,14 +45,20 @@ export function DashboardParcelCard({
   storeNames: string[];
   carrierNames: string[];
 }) {
+  const t = useTranslations('card');
+  const ts = useTranslations('status');
+  const tc = useTranslations('common');
+  const months = tc.raw('months') as string[];
   const [open, setOpen] = useState(false);
   const [track, trackAction, trackPending] = useActionState(checkTrackingAction, TRACKING_INIT);
   const meta = PARCEL_STATUS_META[parcel.status];
+  const statusLabel = ts(meta.key);
 
+  const fmtDate = (iso: string | null): string => formatDay(iso, months);
   const eta =
     parcel.status === 'DELIVERED'
-      ? `получено ${formatShortDate(parcel.deliveredAt)}`
-      : `ETA ${formatShortDate(parcel.estimatedArrival)}`;
+      ? t('received', { date: fmtDate(parcel.deliveredAt) })
+      : t('eta', { date: fmtDate(parcel.estimatedArrival) });
 
   return (
     <div className="rounded-xl border border-hairline bg-surface shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-card-hover">
@@ -61,16 +69,16 @@ export function DashboardParcelCard({
       >
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">
-            {parcel.name ?? parcel.description ?? parcel.trackingNumber ?? 'Посылка'}
+            {parcel.name ?? parcel.description ?? parcel.trackingNumber ?? t('fallbackName')}
           </div>
           <div className="mt-0.5 truncate text-xs text-muted">
             {recipientName} · {parcel.carrier ?? '—'} · {eta}
-            {parcel.items.length > 0 ? ` · ${parcel.items.length} тов.` : ''}
+            {parcel.items.length > 0 ? ` · ${t('items', { count: parcel.items.length })}` : ''}
           </div>
         </div>
         <span className="shrink-0 text-sm font-medium">{formatMoney(parcel.declaredValueUsd, parcel.currency)}</span>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${BADGE_TONE[meta.tone]}`}>
-          {meta.label}
+          {statusLabel}
         </span>
         <ChevronDown size={16} aria-hidden className={`shrink-0 text-muted transition ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -78,12 +86,12 @@ export function DashboardParcelCard({
       {open ? (
         <div className="border-t border-hairline px-4 py-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Field label="Получатель" value={recipientName} />
-            <Field label="Магазин" value={parcel.store ?? '—'} />
-            <Field label="Трек-номер" value={parcel.trackingNumber ?? '—'} />
-            <Field label="Стоимость" value={parcel.declaredValueGel !== null ? formatGel(parcel.declaredValueGel) : '—'} />
-            <Field label="Вес" value={parcel.weightKg !== null ? `${parcel.weightKg} кг` : '—'} />
-            <Field label="Статус" value={meta.label} />
+            <Field label={t('fieldRecipient')} value={recipientName} />
+            <Field label={t('fieldStore')} value={parcel.store ?? '—'} />
+            <Field label={t('fieldTracking')} value={parcel.trackingNumber ?? '—'} />
+            <Field label={t('fieldValue')} value={parcel.declaredValueGel !== null ? formatGel(parcel.declaredValueGel) : '—'} />
+            <Field label={t('fieldWeight')} value={parcel.weightKg !== null ? `${parcel.weightKg} ${tc('kg')}` : '—'} />
+            <Field label={t('fieldStatus')} value={statusLabel} />
           </div>
 
           <ParcelComposition parcel={parcel} />
@@ -100,7 +108,7 @@ export function DashboardParcelCard({
               <input type="hidden" name="status" value="DELIVERED" />
               <button type="submit" className="flex items-center gap-1.5 rounded-md bg-low-soft px-3 py-1.5 text-xs font-medium text-low transition hover:opacity-80">
                 <Check size={13} aria-hidden />
-                Доставлено
+                {t('btnDelivered')}
               </button>
             </form>
 
@@ -109,7 +117,7 @@ export function DashboardParcelCard({
               <input type="hidden" name="status" value="EXCEPTION" />
               <button type="submit" className="flex items-center gap-1.5 rounded-md bg-medium-soft px-3 py-1.5 text-xs font-medium text-medium transition hover:opacity-80">
                 <XCircle size={13} aria-hidden />
-                Утеряно
+                {t('btnLost')}
               </button>
             </form>
 
@@ -118,7 +126,7 @@ export function DashboardParcelCard({
                 <input type="hidden" name="tracking" value={parcel.trackingNumber} />
                 <button type="submit" disabled={trackPending} className="flex items-center gap-1.5 rounded-md bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand-dark transition hover:opacity-80 disabled:opacity-60">
                   <Truck size={13} aria-hidden />
-                  {trackPending ? 'Проверяем…' : 'Проверить статус'}
+                  {trackPending ? t('btnChecking') : t('btnCheck')}
                 </button>
               </form>
             ) : null}
@@ -126,7 +134,7 @@ export function DashboardParcelCard({
             <form
               action={deleteParcelAction}
               onSubmit={(e) => {
-                if (!confirm('Удалить эту посылку?')) {
+                if (!confirm(t('confirmDelete'))) {
                   e.preventDefault();
                 }
               }}
@@ -134,7 +142,7 @@ export function DashboardParcelCard({
               <input type="hidden" name="id" value={parcel.id} />
               <button type="submit" className="flex items-center gap-1.5 rounded-md bg-high-soft px-3 py-1.5 text-xs font-medium text-high transition hover:opacity-80">
                 <Trash2 size={13} aria-hidden />
-                Удалить
+                {t('btnDelete')}
               </button>
             </form>
           </div>

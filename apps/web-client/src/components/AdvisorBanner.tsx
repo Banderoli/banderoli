@@ -1,12 +1,13 @@
 import { AlertOctagon, AlertTriangle, CalendarClock, CheckCircle2, Info, PackageX, Receipt, Weight } from 'lucide-react';
 import type { ComponentType } from 'react';
-import { getFormatter, getLocale, getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 import {
   EXPOSURE_ALERT_CODES,
   type ExposureResult,
   type ParcelResponse,
 } from '@banderoli/contracts';
 import type { RecipientOption } from '@/lib/mock-data';
+import { formatDay } from '@/lib/format-day';
 import { buildRiskNotices, type RiskNotice } from '@/lib/risk-notices';
 import { LimitBar } from './LimitBar';
 import { RecipientSwitcher } from './RecipientSwitcher';
@@ -68,12 +69,11 @@ export async function AdvisorBanner({
 }) {
   const t = await getTranslations('advisor');
   const tc = await getTranslations('common');
-  const format = await getFormatter();
   const locale = await getLocale();
+  const months = tc.raw('months') as string[];
   const [openQuote, closeQuote] = locale === 'en' ? ['“', '”'] : ['«', '»'];
   const wrap = (label: string): string => `${openQuote}${label}${closeQuote}`;
-  const fmtDay = (day: string): string =>
-    format.dateTime(new Date(`${day}T12:00:00`), { day: 'numeric', month: 'short' });
+  const fmtDay = (day: string): string => formatDay(day, months);
 
   const notices = buildRiskNotices(parcels, recipientNameById, exposure.limitGel);
   const hasRed = notices.some((n) => n.tone === 'red');

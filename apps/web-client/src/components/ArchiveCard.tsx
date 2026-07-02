@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ChevronDown, RotateCcw } from 'lucide-react';
 import type { ParcelResponse } from '@banderoli/contracts';
 import { PARCEL_STATUS_META, type StatusTone } from '@/lib/parcel-status';
-import { formatGel, formatMoney, formatShortDate } from '@/lib/format';
+import { formatGel, formatMoney } from '@/lib/format';
+import { formatDay } from '@/lib/format-day';
 import { restoreParcelAction } from '@/app/parcel-actions';
 import { ParcelComposition } from './ParcelComposition';
 
@@ -31,8 +33,14 @@ export function ArchiveCard({
   parcel: ParcelResponse;
   recipientName: string;
 }) {
+  const t = useTranslations('card');
+  const ts = useTranslations('status');
+  const tc = useTranslations('common');
+  const months = tc.raw('months') as string[];
   const [open, setOpen] = useState(false);
   const meta = PARCEL_STATUS_META[parcel.status];
+  const statusLabel = ts(meta.key);
+  const fmtDate = (iso: string | null): string => formatDay(iso, months);
 
   return (
     <div className="rounded-xl border border-hairline bg-surface shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-card-hover">
@@ -43,19 +51,19 @@ export function ArchiveCard({
       >
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">
-            {parcel.name ?? parcel.description ?? parcel.trackingNumber ?? 'Посылка'}
+            {parcel.name ?? parcel.description ?? parcel.trackingNumber ?? t('fallbackName')}
           </div>
           <div className="mt-0.5 truncate text-xs text-muted">
             {recipientName}
             {parcel.trackingNumber ? ` · ${parcel.trackingNumber}` : ''}
-            {parcel.items.length > 0 ? ` · ${parcel.items.length} тов.` : ''}
+            {parcel.items.length > 0 ? ` · ${t('items', { count: parcel.items.length })}` : ''}
           </div>
         </div>
         <span className="shrink-0 text-sm font-medium">{formatMoney(parcel.declaredValueUsd, parcel.currency)}</span>
         <span
           className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${BADGE_TONE[meta.tone]}`}
         >
-          {meta.label}
+          {statusLabel}
         </span>
         <ChevronDown
           size={16}
@@ -67,20 +75,20 @@ export function ArchiveCard({
       {open ? (
         <div className="border-t border-hairline px-4 py-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Field label="Получатель" value={recipientName} />
-            <Field label="Магазин" value={parcel.store ?? '—'} />
-            <Field label="Перевозчик" value={parcel.carrier ?? '—'} />
+            <Field label={t('fieldRecipient')} value={recipientName} />
+            <Field label={t('fieldStore')} value={parcel.store ?? '—'} />
+            <Field label={t('fieldCarrier')} value={parcel.carrier ?? '—'} />
             <Field
-              label="Стоимость"
+              label={t('fieldValue')}
               value={parcel.declaredValueGel !== null ? formatGel(parcel.declaredValueGel) : '—'}
             />
             <Field
-              label={parcel.status === 'DELIVERED' ? 'Вручено' : 'Прибытие'}
-              value={formatShortDate(
+              label={parcel.status === 'DELIVERED' ? t('fieldDelivered') : t('fieldArrival')}
+              value={fmtDate(
                 parcel.status === 'DELIVERED' ? parcel.deliveredAt : parcel.estimatedArrival,
               )}
             />
-            <Field label="Статус" value={meta.label} />
+            <Field label={t('fieldStatus')} value={statusLabel} />
           </div>
 
           <ParcelComposition parcel={parcel} />
@@ -93,7 +101,7 @@ export function ArchiveCard({
                 className="flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-dark"
               >
                 <RotateCcw size={14} aria-hidden />
-                Восстановить
+                {t('btnRestore')}
               </button>
             </form>
           </div>
