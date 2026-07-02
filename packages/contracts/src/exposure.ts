@@ -11,6 +11,9 @@ export const ExposureResultSchema = z.object({
   totalValueGel: z.number(),
   limitGel: z.number(),
   remainingGel: z.number(),
+  // ISO-дата (YYYY-MM-DD) пикового дня прибытия, по которому считается лимит; null — если
+  // все посылки без даты прибытия.
+  peakDay: z.string().nullable().optional(),
   alerts: z.array(
     z.object({
       code: z.string(),

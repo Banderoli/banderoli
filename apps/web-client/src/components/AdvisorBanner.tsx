@@ -115,23 +115,18 @@ export function AdvisorBanner({
 
   return (
     <div className={`mb-4 rounded-xl border border-hairline border-l-4 ${TONE_BORDER[tone]} bg-surface p-4 shadow-card`}>
-      {/* Заголовок-советник + переключатель получателя (для полос ниже) */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 gap-2.5">
-          <div className="flex shrink-0 flex-col items-center gap-1 pt-0.5">
-            <Icon size={20} aria-hidden className={TONE_TEXT[tone]} />
-            <span className="text-sm leading-none" aria-hidden>
-              {TONE_EMOJI[tone]}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <div className={`text-sm font-semibold ${TONE_TEXT[tone]}`}>{title}</div>
-            <div className="mt-0.5 text-sm leading-relaxed text-ink">{detail}</div>
-          </div>
+      {/* Заголовок-советник */}
+      <div className="flex min-w-0 gap-2.5">
+        <div className="flex shrink-0 flex-col items-center gap-1 pt-0.5">
+          <Icon size={20} aria-hidden className={TONE_TEXT[tone]} />
+          <span className="text-sm leading-none" aria-hidden>
+            {TONE_EMOJI[tone]}
+          </span>
         </div>
-        {switcherRecipients.length > 1 ? (
-          <RecipientSwitcher recipients={switcherRecipients} selectedId={selectedRecipientId} />
-        ) : null}
+        <div className="min-w-0">
+          <div className={`text-sm font-semibold ${TONE_TEXT[tone]}`}>{title}</div>
+          <div className="mt-0.5 text-sm leading-relaxed text-ink">{detail}</div>
+        </div>
       </div>
 
       {/* Адресные уведомления по датам прибытия */}
@@ -154,9 +149,17 @@ export function AdvisorBanner({
 
       {/* Полосы лимита по выбранному получателю — за пиковый день прибытия */}
       <div className="mt-4 border-t border-hairline pt-3">
-        <div className="mb-2 text-xs text-muted">
-          Лимит получателя <span className="font-medium text-ink">{recipientName}</span> — за пиковый
-          день прибытия
+        <div className="mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
+          <span>Лимит получателя</span>
+          {switcherRecipients.length > 1 ? (
+            <RecipientSwitcher recipients={switcherRecipients} selectedId={selectedRecipientId} />
+          ) : (
+            <span className="font-medium text-ink">{recipientName}</span>
+          )}
+          <span>
+            — за пиковый день прибытия
+            {exposure.peakDay ? ` · ${fmtDay(exposure.peakDay)}` : ''}
+          </span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <LimitBar

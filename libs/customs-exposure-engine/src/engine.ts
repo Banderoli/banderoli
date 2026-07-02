@@ -149,6 +149,7 @@ export function calculateExposure(
     totalValueGel,
     limitGel: config.limitGel,
     remainingGel: round2(Math.max(0, config.limitGel - totalValueGel)),
+    peakDay: worstDay && worstDay.key !== 'unscheduled' ? worstDay.key : null,
     alerts,
   };
 }

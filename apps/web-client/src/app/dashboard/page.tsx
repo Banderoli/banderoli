@@ -8,7 +8,7 @@ import { AdvisorBanner } from '@/components/AdvisorBanner';
 import { loadDashboard } from '@/lib/dashboard';
 import { listCarriers, listParcels, listStores, loadRecipientsExposure } from '@/lib/api';
 import { getGelRates } from '@/lib/nbg-rate';
-import { formatGel, formatShortDate } from '@/lib/format';
+import { formatGel } from '@/lib/format';
 
 export default async function DashboardPage({
   searchParams,
@@ -49,14 +49,20 @@ export default async function DashboardPage({
       ),
     ),
   ).sort((a, b) => a.localeCompare(b, 'ru'));
-  // Ближайшая ожидаемая доставка среди активных посылок выбранного получателя.
-  const nearestArrival =
-    [...data.parcels]
-      .filter(
-        (p) => p.status !== 'DELIVERED' && p.status !== 'EXCEPTION' && p.estimatedArrival,
-      )
-      .map((p) => p.estimatedArrival as string)
-      .sort()[0] ?? null;
+  // Метрики по ВСЕМ получателям (не только выбранному): статусы + суммарная стоимость.
+  const ACTIVE_STATUSES: ReadonlyArray<string> = [
+    'PENDING',
+    'IN_TRANSIT',
+    'IN_CUSTOMS',
+    'CUSTOMS_CLEARED',
+  ];
+  const countByStatus = (status: string): number =>
+    parcelsForList.filter((p) => p.status === status).length;
+  const totalValueGel = Math.round(
+    parcelsForList
+      .filter((p) => ACTIVE_STATUSES.includes(p.status))
+      .reduce((sum, p) => sum + (p.declaredValueGel ?? 0), 0),
+  );
 
   return (
     <main className="px-4 py-5 sm:px-6 sm:py-6">
@@ -84,23 +90,19 @@ export default async function DashboardPage({
         />
 
         <div className="mb-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-          <MetricCard label="В пути" value={String(data.metrics.inTransit)} sub="активных отправлений" />
+          <MetricCard label="Ожидают" value={String(countByStatus('PENDING'))} sub="ещё не отправлены" />
+          <MetricCard
+            label="Всего в пути"
+            value={String(countByStatus('IN_TRANSIT'))}
+            sub="у всех получателей"
+          />
           <MetricCard
             label="На таможне"
-            value={String(data.metrics.inCustoms)}
+            value={String(countByStatus('IN_CUSTOMS'))}
             sub="ожидает оформления"
             accent="medium"
           />
-          <MetricCard
-            label="Стоимость посылок"
-            value={formatGel(data.metrics.spentGel)}
-            sub="всего заявлено, в лари"
-          />
-          <MetricCard
-            label="Ближайшее прибытие"
-            value={formatShortDate(nearestArrival)}
-            sub="ожидаемая доставка"
-          />
+          <MetricCard label="Общая стоимость" value={formatGel(totalValueGel)} sub="все посылки, в лари" />
         </div>
 
         <div className="mb-4">
