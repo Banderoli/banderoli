@@ -8,7 +8,7 @@ import { AdvisorBanner } from '@/components/AdvisorBanner';
 import { loadDashboard } from '@/lib/dashboard';
 import { listCarriers, listParcels, listStores, loadRecipientsExposure } from '@/lib/api';
 import { getGelRates } from '@/lib/nbg-rate';
-import { formatGel } from '@/lib/format';
+import { formatGel, formatShortDate } from '@/lib/format';
 
 export default async function DashboardPage({
   searchParams,
@@ -49,8 +49,14 @@ export default async function DashboardPage({
       ),
     ),
   ).sort((a, b) => a.localeCompare(b, 'ru'));
-  const exposureAccent =
-    exposure.level === 'HIGH' ? 'high' : exposure.level === 'MEDIUM' ? 'medium' : undefined;
+  // Ближайшая ожидаемая доставка среди активных посылок выбранного получателя.
+  const nearestArrival =
+    [...data.parcels]
+      .filter(
+        (p) => p.status !== 'DELIVERED' && p.status !== 'EXCEPTION' && p.estimatedArrival,
+      )
+      .map((p) => p.estimatedArrival as string)
+      .sort()[0] ?? null;
 
   return (
     <main className="px-4 py-5 sm:px-6 sm:py-6">
@@ -87,11 +93,15 @@ export default async function DashboardPage({
             accent="medium"
           />
           <MetricCard
-            label="Потрачено в этом месяце"
+            label="Стоимость посылок"
             value={formatGel(data.metrics.spentGel)}
-            sub="в лари, по всем валютам"
+            sub="всего заявлено, в лари"
           />
-          <MetricCard label="Экспозиция" value={exposure.level} sub="по получателю" accent={exposureAccent} />
+          <MetricCard
+            label="Ближайшее прибытие"
+            value={formatShortDate(nearestArrival)}
+            sub="ожидаемая доставка"
+          />
         </div>
 
         <div className="mb-4">

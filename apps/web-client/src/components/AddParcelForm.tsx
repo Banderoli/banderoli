@@ -88,17 +88,17 @@ export function AddParcelForm({
     if (headroom < 0) {
       advice = {
         tone: 'red',
-        text: `Эта посылка превысит лимит ${selectedRecipient.name} на ${Math.round(-headroom)} GEL — вероятна растаможка (НДС на всю сумму).`,
+        text: `При совпадении прибытия эта посылка превысит лимит ${selectedRecipient.name} на ${Math.round(-headroom)} GEL — вероятен НДС на всю сумму.`,
       };
     } else if (headroom <= selectedRecipient.limitGel * 0.1) {
       advice = {
         tone: 'amber',
-        text: `Почти у лимита: после этой посылки у ${selectedRecipient.name} останется ≈ ${Math.round(headroom)} GEL (~$${headroomUsd}).`,
+        text: `Почти у лимита: если посылки придут в один день, у ${selectedRecipient.name} останется ≈ ${Math.round(headroom)} GEL (~$${headroomUsd}).`,
       };
     } else {
       advice = {
         tone: 'green',
-        text: `После этой посылки у ${selectedRecipient.name} останется ≈ ${Math.round(headroom)} GEL (~$${headroomUsd}) до лимита.`,
+        text: `Если посылки придут в один день, у ${selectedRecipient.name} останется ≈ ${Math.round(headroom)} GEL (~$${headroomUsd}) до лимита.`,
       };
     }
   }
