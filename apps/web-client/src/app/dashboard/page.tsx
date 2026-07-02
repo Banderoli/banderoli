@@ -1,14 +1,12 @@
 import { Info, Sparkles } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { MetricCard } from '@/components/MetricCard';
 import { DashboardParcels } from '@/components/DashboardParcels';
 import { AddParcelForm } from '@/components/AddParcelForm';
 import { AdvisorBanner } from '@/components/AdvisorBanner';
 import { loadDashboard } from '@/lib/dashboard';
 import { listCarriers, listParcels, listStores, loadRecipientsExposure } from '@/lib/api';
 import { getGelRates } from '@/lib/nbg-rate';
-import { formatGel } from '@/lib/format';
 
 export default async function DashboardPage({
   searchParams,
@@ -49,20 +47,6 @@ export default async function DashboardPage({
       ),
     ),
   ).sort((a, b) => a.localeCompare(b, 'ru'));
-  // Метрики по ВСЕМ получателям (не только выбранному): статусы + суммарная стоимость.
-  const ACTIVE_STATUSES: ReadonlyArray<string> = [
-    'PENDING',
-    'IN_TRANSIT',
-    'IN_CUSTOMS',
-    'CUSTOMS_CLEARED',
-  ];
-  const countByStatus = (status: string): number =>
-    parcelsForList.filter((p) => p.status === status).length;
-  const totalValueGel = Math.round(
-    parcelsForList
-      .filter((p) => ACTIVE_STATUSES.includes(p.status))
-      .reduce((sum, p) => sum + (p.declaredValueGel ?? 0), 0),
-  );
 
   return (
     <main className="px-4 py-5 sm:px-6 sm:py-6">
@@ -88,22 +72,6 @@ export default async function DashboardPage({
           parcels={parcelsForList}
           recipientNameById={recipientNameById}
         />
-
-        <div className="mb-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-          <MetricCard label="Ожидают" value={String(countByStatus('PENDING'))} sub="ещё не отправлены" />
-          <MetricCard
-            label="Всего в пути"
-            value={String(countByStatus('IN_TRANSIT'))}
-            sub="у всех получателей"
-          />
-          <MetricCard
-            label="На таможне"
-            value={String(countByStatus('IN_CUSTOMS'))}
-            sub="ожидает оформления"
-            accent="medium"
-          />
-          <MetricCard label="Общая стоимость" value={formatGel(totalValueGel)} sub="все посылки, в лари" />
-        </div>
 
         <div className="mb-4">
           <AddParcelForm

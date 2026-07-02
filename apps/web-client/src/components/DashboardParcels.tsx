@@ -3,7 +3,9 @@
 import { useMemo, useState } from 'react';
 import type { ParcelResponse } from '@banderoli/contracts';
 import type { RecipientOption } from '@/lib/mock-data';
+import { formatGel } from '@/lib/format';
 import { DashboardParcelCard } from './DashboardParcelCard';
+import { MetricCard } from './MetricCard';
 
 // Фирменный фиолетовый стиль всех полей фильтра (селекты + поиск по треку).
 const fieldClass =
@@ -52,6 +54,17 @@ export function DashboardParcels({
   // Магазины/службы для фильтра приходят уже объединённым списком имён.
   const storeOptions = storeNames;
   const carrierOptions = carrierNames;
+
+  // Сводные метрики следуют за фильтром получателя: выбран получатель — его данные,
+  // «Все посылки» — сумма по всем. Магазин/служба/поиск на сводку не влияют.
+  const metricsParcels = recipient
+    ? active.filter((p) => p.recipientProfileId === recipient)
+    : active;
+  const countByStatus = (status: ParcelResponse['status']): number =>
+    metricsParcels.filter((p) => p.status === status).length;
+  const totalValueGel = Math.round(
+    metricsParcels.reduce((sum, p) => sum + (p.declaredValueGel ?? 0), 0),
+  );
 
   const query = track.trim().toLowerCase();
   const filtered = active.filter(
@@ -124,6 +137,23 @@ export function DashboardParcels({
             />
           ))
         )}
+      </div>
+
+      {/* Сводка по выбранному в фильтре получателю (или по всем посылкам) */}
+      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <MetricCard label="Ожидают" value={String(countByStatus('PENDING'))} sub="ещё не отправлены" />
+        <MetricCard
+          label="Всего в пути"
+          value={String(countByStatus('IN_TRANSIT'))}
+          sub={recipient ? 'у получателя' : 'у всех получателей'}
+        />
+        <MetricCard
+          label="На таможне"
+          value={String(countByStatus('IN_CUSTOMS'))}
+          sub="ожидает оформления"
+          accent="medium"
+        />
+        <MetricCard label="Общая стоимость" value={formatGel(totalValueGel)} sub="активные, в лари" />
       </div>
     </div>
   );
