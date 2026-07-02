@@ -29,6 +29,7 @@ export function AddParcelForm({
   rates: Record<string, number>;
 }) {
   const td = useTranslations('dashboard');
+  const t = useTranslations('form');
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createParcelAction, INITIAL);
   // formKey ремонтит редактор позиций, чтобы применились распознанные товары.
@@ -90,17 +91,25 @@ export function AddParcelForm({
     if (headroom < 0) {
       advice = {
         tone: 'red',
-        text: `При совпадении прибытия эта посылка превысит лимит ${selectedRecipient.name} на ${Math.round(-headroom)} GEL — вероятен НДС на всю сумму.`,
+        text: t('adviceExceeded', { name: selectedRecipient.name, amount: Math.round(-headroom) }),
       };
     } else if (headroom <= selectedRecipient.limitGel * 0.1) {
       advice = {
         tone: 'amber',
-        text: `Почти у лимита: если посылки придут в один день, у ${selectedRecipient.name} останется ≈ ${Math.round(headroom)} GEL (~$${headroomUsd}).`,
+        text: t('adviceNear', {
+          name: selectedRecipient.name,
+          rem: Math.round(headroom),
+          remUsd: headroomUsd,
+        }),
       };
     } else {
       advice = {
         tone: 'green',
-        text: `Если посылки придут в один день, у ${selectedRecipient.name} останется ≈ ${Math.round(headroom)} GEL (~$${headroomUsd}) до лимита.`,
+        text: t('adviceOk', {
+          name: selectedRecipient.name,
+          rem: Math.round(headroom),
+          remUsd: headroomUsd,
+        }),
       };
     }
   }
@@ -129,10 +138,10 @@ export function AddParcelForm({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-medium">Новая посылка</h2>
+              <h2 className="text-base font-medium">{t('addTitle')}</h2>
               <button
                 type="button"
-                aria-label="Закрыть"
+                aria-label={t('close')}
                 onClick={closeModal}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-canvas hover:text-ink"
               >
@@ -144,14 +153,14 @@ export function AddParcelForm({
 
             <div className="my-4 flex items-center gap-3">
               <div className="h-px flex-1 bg-hairline" />
-              <span className="shrink-0 text-xs text-muted">или заполните вручную</span>
+              <span className="shrink-0 text-xs text-muted">{t('orManually')}</span>
               <div className="h-px flex-1 bg-hairline" />
             </div>
 
             <form action={formAction} className="space-y-2.5">
               {recipients.length > 0 ? (
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Получатель (на кого выписать)</span>
+                  <span className="mb-1 block text-xs text-muted">{t('recipientLabel')}</span>
                   <select
                     name="recipientProfileId"
                     value={recipientId}
@@ -161,7 +170,7 @@ export function AddParcelForm({
                     {recipients.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name} · {Math.round(r.usedGel)}/{r.limitGel} GEL
-                        {r.exceeded ? ' (превышен)' : r.ratio >= 0.85 ? ' (близко)' : ''}
+                        {r.exceeded ? t('recipientExceeded') : r.ratio >= 0.85 ? t('recipientNear') : ''}
                       </option>
                     ))}
                   </select>
@@ -170,22 +179,22 @@ export function AddParcelForm({
                 <input type="hidden" name="recipientProfileId" value="" />
               )}
 
-              <input name="name" required placeholder="Название посылки (напр. Алия1) *" className={inputClass} />
+              <input name="name" required placeholder={t('namePlaceholder')} className={inputClass} />
 
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Дата покупки</span>
+                  <span className="mb-1 block text-xs text-muted">{t('purchasedAt')}</span>
                   <input name="purchasedAt" type="date" className={inputClass} />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Ожидаемая доставка</span>
+                  <span className="mb-1 block text-xs text-muted">{t('estimatedArrival')}</span>
                   <input name="estimatedArrival" type="date" className={inputClass} />
                 </label>
               </div>
 
               {storeOptions.length > 0 ? (
                 <select name="store" value={store} onChange={(e) => setStore(e.target.value)} className={inputClass}>
-                  <option value="">— магазин —</option>
+                  <option value="">{t('storeDash')}</option>
                   {storeOptions.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -197,14 +206,14 @@ export function AddParcelForm({
                   name="store"
                   value={store}
                   onChange={(e) => setStore(e.target.value)}
-                  placeholder="Магазин (добавьте в Настройках)"
+                  placeholder={t('storeNew')}
                   className={inputClass}
                 />
               )}
 
               {carrierNames.length > 0 ? (
                 <select name="carrier" defaultValue="" className={inputClass}>
-                  <option value="">— перевозчик —</option>
+                  <option value="">{t('carrierDash')}</option>
                   {carrierNames.map((c) => (
                     <option key={c} value={c}>
                       {c}
@@ -212,11 +221,11 @@ export function AddParcelForm({
                   ))}
                 </select>
               ) : (
-                <input name="carrier" placeholder="Перевозчик (добавьте в Настройках)" className={inputClass} />
+                <input name="carrier" placeholder={t('carrierNew')} className={inputClass} />
               )}
 
               <label className="block">
-                <span className="mb-1 block text-xs text-muted">Валюта цен</span>
+                <span className="mb-1 block text-xs text-muted">{t('currencyLabel')}</span>
                 <select
                   name="currency"
                   value={currency}
@@ -240,7 +249,7 @@ export function AddParcelForm({
 
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Стоимость доставки ({symbol})</span>
+                  <span className="mb-1 block text-xs text-muted">{t('shippingLabel', { symbol })}</span>
                   <input
                     name="shippingCostUsd"
                     type="number"
@@ -248,19 +257,19 @@ export function AddParcelForm({
                     step="0.01"
                     value={shipping}
                     onChange={(e) => setShipping(e.target.value)}
-                    placeholder={`${symbol} доставка`}
+                    placeholder={t('shippingPlaceholder', { symbol })}
                     className={inputClass}
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Вес (кг)</span>
-                  <input name="weightKg" type="number" min="0" step="0.1" placeholder="кг" className={inputClass} />
+                  <span className="mb-1 block text-xs text-muted">{t('weightLabel')}</span>
+                  <input name="weightKg" type="number" min="0" step="0.1" placeholder={t('weightPlaceholder')} className={inputClass} />
                 </label>
               </div>
 
-              <textarea name="description" rows={2} placeholder="Комментарий" className={inputClass} />
+              <textarea name="description" rows={2} placeholder={t('commentPlaceholder')} className={inputClass} />
 
-              <input name="trackingNumber" placeholder="Трек-номер (если есть)" className={inputClass} />
+              <input name="trackingNumber" placeholder={t('trackingPlaceholder')} className={inputClass} />
 
               {advice ? (
                 <p className={`flex items-start gap-1.5 text-xs font-medium ${adviceTone}`}>
@@ -270,11 +279,8 @@ export function AddParcelForm({
               ) : null}
 
               <p className="text-xs text-muted">
-                {currency === 'GEL'
-                  ? 'Цены уже в лари. '
-                  : `Курс НБ Грузии: 1 ${currency} ≈ ${rate.toFixed(4)} GEL. `}
-                Итог = сумма товаров + доставка, переводится в лари по курсу НБГ. Доставка тоже входит
-                в лимит 300 GEL.
+                {currency === 'GEL' ? t('gelHint') : t('rateHint', { currency, rate: rate.toFixed(4) })}
+                {t('totalHint')}
               </p>
 
               {state.error ? <p className="text-xs text-high">{state.error}</p> : null}
@@ -285,14 +291,14 @@ export function AddParcelForm({
                   onClick={closeModal}
                   className="rounded-md border border-hairline px-3.5 py-2 text-sm transition hover:bg-canvas"
                 >
-                  Отмена
+                  {t('cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={pending}
                   className="rounded-md bg-brand px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-60"
                 >
-                  {pending ? 'Добавление…' : 'Добавить'}
+                  {pending ? t('submitAdding') : t('submitAdd')}
                 </button>
               </div>
             </form>

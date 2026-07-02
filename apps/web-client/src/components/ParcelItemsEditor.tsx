@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Plus, Trash2 } from 'lucide-react';
 
 interface ItemRow {
@@ -22,6 +23,7 @@ export function ParcelItemsEditor({
   currencySymbol?: string;
   onTotalChange?: (total: number) => void;
 }) {
+  const t = useTranslations('items');
   const [rows, setRows] = useState<ItemRow[]>(
     defaultItems && defaultItems.length > 0
       ? defaultItems.map((it) => ({ name: it.name, price: String(it.priceUsd) }))
@@ -50,14 +52,14 @@ export function ParcelItemsEditor({
       <input type="hidden" name="itemsJson" value={itemsJson} />
 
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted">Товары в посылке</span>
+        <span className="text-xs font-medium text-muted">{t('title')}</span>
         <button
           type="button"
           onClick={add}
           className="flex items-center gap-1 rounded-md bg-brand-soft px-2 py-1 text-xs font-medium text-brand-dark transition hover:bg-brand hover:text-white"
         >
           <Plus size={13} aria-hidden />
-          продукция
+          {t('add')}
         </button>
       </div>
 
@@ -66,8 +68,8 @@ export function ParcelItemsEditor({
           <input
             value={row.name}
             onChange={(e) => update(i, { name: e.target.value })}
-            placeholder="Товар (напр. Кроссовки Nike)"
-            aria-label="Название товара"
+            placeholder={t('namePlaceholder')}
+            aria-label={t('nameAria')}
             className={`min-w-0 flex-1 ${rowInput}`}
           />
           <input
@@ -76,14 +78,14 @@ export function ParcelItemsEditor({
             type="number"
             min="0"
             step="0.01"
-            placeholder={`${currencySymbol} цена`}
-            aria-label="Цена товара"
+            placeholder={t('pricePlaceholder', { symbol: currencySymbol })}
+            aria-label={t('priceAria')}
             className={`w-24 ${rowInput}`}
           />
           <button
             type="button"
             onClick={() => remove(i)}
-            aria-label="Удалить позицию"
+            aria-label={t('remove')}
             disabled={rows.length === 1}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-high-soft hover:text-high disabled:opacity-40"
           >
@@ -93,7 +95,7 @@ export function ParcelItemsEditor({
       ))}
 
       <div className="flex justify-end text-xs text-muted">
-        Сумма товаров:{' '}
+        {t('sum')}{' '}
         <span className="ml-1 font-medium text-ink">
           {currencySymbol}
           {itemsTotal.toFixed(2)}

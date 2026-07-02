@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Pencil, X } from 'lucide-react';
 import { PARCEL_CURRENCIES, type ParcelResponse } from '@banderoli/contracts';
 import { updateParcelAction, type ParcelFormState } from '@/app/parcel-actions';
@@ -20,6 +21,8 @@ export function EditParcelForm({
   storeNames: string[];
   carrierNames: string[];
 }) {
+  const t = useTranslations('form');
+  const tCard = useTranslations('card');
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState(updateParcelAction, INITIAL);
   const [currency, setCurrency] = useState(parcel.currency || 'USD');
@@ -43,7 +46,7 @@ export function EditParcelForm({
         className="flex items-center gap-1.5 rounded-md border border-hairline px-3 py-1.5 text-xs font-medium transition hover:bg-canvas"
       >
         <Pencil size={13} aria-hidden />
-        Редактировать
+        {tCard('btnEdit')}
       </button>
 
       {open ? (
@@ -56,10 +59,10 @@ export function EditParcelForm({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-medium">Редактировать посылку</h2>
+              <h2 className="text-base font-medium">{t('editTitle')}</h2>
               <button
                 type="button"
-                aria-label="Закрыть"
+                aria-label={t('close')}
                 onClick={() => setOpen(false)}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-canvas hover:text-ink"
               >
@@ -69,22 +72,22 @@ export function EditParcelForm({
 
             <form action={action} className="space-y-2.5">
               <input type="hidden" name="id" value={parcel.id} />
-              <input name="name" required defaultValue={parcel.name ?? ''} placeholder="Название посылки (напр. Алия1) *" className={inputClass} />
+              <input name="name" required defaultValue={parcel.name ?? ''} placeholder={t('namePlaceholder')} className={inputClass} />
 
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Дата покупки</span>
+                  <span className="mb-1 block text-xs text-muted">{t('purchasedAt')}</span>
                   <input name="purchasedAt" type="date" defaultValue={parcel.purchasedAt ? parcel.purchasedAt.slice(0, 10) : ''} className={inputClass} />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Ожидаемая доставка</span>
+                  <span className="mb-1 block text-xs text-muted">{t('estimatedArrival')}</span>
                   <input name="estimatedArrival" type="date" defaultValue={parcel.estimatedArrival ? parcel.estimatedArrival.slice(0, 10) : ''} className={inputClass} />
                 </label>
               </div>
 
               {storeOptions.length > 0 ? (
                 <select name="store" value={store} onChange={(e) => setStore(e.target.value)} className={inputClass}>
-                  <option value="">— магазин —</option>
+                  <option value="">{t('storeDash')}</option>
                   {storeOptions.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -92,12 +95,12 @@ export function EditParcelForm({
                   ))}
                 </select>
               ) : (
-                <input name="store" value={store} onChange={(e) => setStore(e.target.value)} placeholder="Магазин" className={inputClass} />
+                <input name="store" value={store} onChange={(e) => setStore(e.target.value)} placeholder={t('storeEdit')} className={inputClass} />
               )}
 
               {carrierOptions.length > 0 ? (
                 <select name="carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} className={inputClass}>
-                  <option value="">— перевозчик —</option>
+                  <option value="">{t('carrierDash')}</option>
                   {carrierOptions.map((c) => (
                     <option key={c} value={c}>
                       {c}
@@ -105,11 +108,11 @@ export function EditParcelForm({
                   ))}
                 </select>
               ) : (
-                <input name="carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Перевозчик" className={inputClass} />
+                <input name="carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder={t('carrierEdit')} className={inputClass} />
               )}
 
               <label className="block">
-                <span className="mb-1 block text-xs text-muted">Валюта цен</span>
+                <span className="mb-1 block text-xs text-muted">{t('currencyLabel')}</span>
                 <select name="currency" value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}>
                   {PARCEL_CURRENCIES.map((c) => (
                     <option key={c} value={c}>
@@ -123,26 +126,26 @@ export function EditParcelForm({
 
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Стоимость доставки ({symbol})</span>
-                  <input name="shippingCostUsd" type="number" min="0" step="0.01" defaultValue={parcel.shippingCostUsd ?? ''} placeholder={`${symbol} доставка`} className={inputClass} />
+                  <span className="mb-1 block text-xs text-muted">{t('shippingLabel', { symbol })}</span>
+                  <input name="shippingCostUsd" type="number" min="0" step="0.01" defaultValue={parcel.shippingCostUsd ?? ''} placeholder={t('shippingPlaceholder', { symbol })} className={inputClass} />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-muted">Вес (кг)</span>
-                  <input name="weightKg" type="number" min="0" step="0.1" defaultValue={parcel.weightKg ?? ''} placeholder="кг" className={inputClass} />
+                  <span className="mb-1 block text-xs text-muted">{t('weightLabel')}</span>
+                  <input name="weightKg" type="number" min="0" step="0.1" defaultValue={parcel.weightKg ?? ''} placeholder={t('weightPlaceholder')} className={inputClass} />
                 </label>
               </div>
 
-              <textarea name="description" rows={2} defaultValue={parcel.description ?? ''} placeholder="Комментарий" className={inputClass} />
-              <input name="trackingNumber" defaultValue={parcel.trackingNumber ?? ''} placeholder="Трек-номер (если есть)" className={inputClass} />
+              <textarea name="description" rows={2} defaultValue={parcel.description ?? ''} placeholder={t('commentPlaceholder')} className={inputClass} />
+              <input name="trackingNumber" defaultValue={parcel.trackingNumber ?? ''} placeholder={t('trackingPlaceholder')} className={inputClass} />
 
               {state.error ? <p className="text-xs text-high">{state.error}</p> : null}
 
               <div className="flex justify-end gap-2 pt-1">
                 <button type="button" onClick={() => setOpen(false)} className="rounded-md border border-hairline px-3.5 py-2 text-sm transition hover:bg-canvas">
-                  Отмена
+                  {t('cancel')}
                 </button>
                 <button type="submit" disabled={pending} className="rounded-md bg-brand px-3.5 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-60">
-                  {pending ? 'Сохранение…' : 'Сохранить'}
+                  {pending ? t('submitSaving') : t('submitSave')}
                 </button>
               </div>
             </form>
