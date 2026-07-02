@@ -1,5 +1,6 @@
 import { Info, Sparkles } from 'lucide-react';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { auth } from '@/auth';
 import { DashboardParcels } from '@/components/DashboardParcels';
 import { AddParcelForm } from '@/components/AddParcelForm';
@@ -19,6 +20,7 @@ export default async function DashboardPage({
   }
 
   const { recipient } = await searchParams;
+  const t = await getTranslations('dashboard');
   const [{ data, demo }, allParcels, stores, carriers, recipientsExposure, rates] =
     await Promise.all([
       loadDashboard(session.user.id, recipient),
@@ -51,13 +53,13 @@ export default async function DashboardPage({
   return (
     <main className="px-4 py-5 sm:px-6 sm:py-6">
         <div className="mb-4">
-          <h1 className="text-lg font-medium">Дашборд</h1>
+          <h1 className="text-lg font-medium">{t('title')}</h1>
         </div>
 
         {demo ? (
           <div className="mb-4 flex items-center gap-2 rounded-md bg-medium-soft px-3 py-2 text-xs text-medium">
             <Info size={14} aria-hidden />
-            Показаны демо-данные: API-шлюз недоступен или у вас ещё нет получателей.
+            {t('demoBanner')}
           </div>
         ) : null}
 
@@ -85,7 +87,7 @@ export default async function DashboardPage({
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
           <section className="rounded-xl border border-hairline bg-surface shadow-card p-4">
-            <h2 className="mb-3 text-sm font-medium">Активные отправления</h2>
+            <h2 className="mb-3 text-sm font-medium">{t('activeShipments')}</h2>
             <DashboardParcels
               parcels={parcelsForList}
               recipients={data.recipients}
@@ -99,12 +101,7 @@ export default async function DashboardPage({
               <span className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand-soft text-brand-dark">
                 <Sparkles size={18} aria-hidden />
               </span>
-              <p className="text-sm leading-relaxed text-muted">
-                Скоро на этом месте будет виден интеллектуальный прогноз возможных задержек ваших
-                посылок, авиарейсов, перегрузок складов и другая полезная информация. А также появятся
-                полезные рекомендации. Искусственный интеллект Banderoli.AI уже работает над сбором
-                требуемой для этого статистики.
-              </p>
+              <p className="text-sm leading-relaxed text-muted">{t('forecastSoon')}</p>
             </div>
           </section>
         </div>

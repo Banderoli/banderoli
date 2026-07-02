@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   BarChart3,
   BookOpen,
@@ -16,27 +17,29 @@ import {
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { signOutAction } from '@/app/auth-actions';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import { Logo } from './Logo';
 
 interface NavEntry {
-  label: string;
+  // Ключ в словаре sidebar.nav.* — сам текст берётся из перевода.
+  key: string;
   icon: ComponentType<{ size?: number; 'aria-hidden'?: boolean; className?: string }>;
   href?: string;
 }
 
-const SECTIONS: Array<{ title?: string; items: NavEntry[] }> = [
+const SECTIONS: Array<{ titleKey?: string; items: NavEntry[] }> = [
   {
     items: [
-      { label: 'Дашборд', icon: LayoutDashboard, href: '/dashboard' },
-      { label: 'Архив', icon: PackageOpen, href: '/dashboard/parcels' },
-      { label: 'Аналитика', icon: BarChart3, href: '/dashboard/analytics' },
-      { label: 'ИИ функции', icon: Sparkles, href: '/dashboard/ai' },
-      { label: 'Настройки', icon: Settings, href: '/dashboard/settings' },
+      { key: 'dashboard', icon: LayoutDashboard, href: '/dashboard' },
+      { key: 'archive', icon: PackageOpen, href: '/dashboard/parcels' },
+      { key: 'analytics', icon: BarChart3, href: '/dashboard/analytics' },
+      { key: 'ai', icon: Sparkles, href: '/dashboard/ai' },
+      { key: 'settings', icon: Settings, href: '/dashboard/settings' },
     ],
   },
   {
-    title: 'Справка',
-    items: [{ label: 'Возможности', icon: BookOpen, href: '/dashboard/rules' }],
+    titleKey: 'help',
+    items: [{ key: 'features', icon: BookOpen, href: '/dashboard/rules' }],
   },
 ];
 
@@ -55,6 +58,7 @@ function NavContent({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  const t = useTranslations('sidebar');
   return (
     <>
       <div className="px-4 pb-5">
@@ -62,14 +66,15 @@ function NavContent({
       </div>
 
       {SECTIONS.map((section, i) => (
-        <div key={section.title ?? `section-${i}`} className="space-y-0.5 px-2">
-          {section.title ? (
+        <div key={section.titleKey ?? `section-${i}`} className="space-y-0.5 px-2">
+          {section.titleKey ? (
             <div className="px-3 pb-1 pt-4 text-[11px] uppercase tracking-wider text-muted">
-              {section.title}
+              {t(section.titleKey)}
             </div>
           ) : null}
           {section.items.map((item) => {
             const Icon = item.icon;
+            const label = t(`nav.${item.key}`);
             const active = item.href === pathname;
             const base =
               'group flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition';
@@ -79,45 +84,50 @@ function NavContent({
 
             if (!item.href) {
               return (
-                <div key={item.label} className={`${base} cursor-default text-muted opacity-60`}>
+                <div key={item.key} className={`${base} cursor-default text-muted opacity-60`}>
                   <Icon size={16} aria-hidden />
-                  {item.label}
+                  {label}
                 </div>
               );
             }
 
             return (
-              <Link key={item.label} href={item.href} onClick={onNavigate} className={className}>
+              <Link key={item.key} href={item.href} onClick={onNavigate} className={className}>
                 <Icon
                   size={16}
                   aria-hidden
                   className={active ? 'text-brand' : 'transition group-hover:text-ink'}
                 />
-                {item.label}
+                {label}
               </Link>
             );
           })}
         </div>
       ))}
 
-      <div className="mt-auto flex items-center gap-2.5 border-t border-hairline px-4 pt-3">
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-xs font-medium text-brand-dark">
-          {initials}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{name}</div>
-          <div className="text-[11px] text-muted">Pro · Тбилиси</div>
+      <div className="mt-auto">
+        <div className="px-2 pb-1 pt-2">
+          <LanguageSwitcher />
         </div>
-        <form action={signOutAction}>
-          <button
-            type="submit"
-            aria-label="Выйти"
-            title="Выйти"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-canvas hover:text-ink"
-          >
-            <LogOut size={15} aria-hidden />
-          </button>
-        </form>
+        <div className="flex items-center gap-2.5 border-t border-hairline px-4 pt-3">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-xs font-medium text-brand-dark">
+            {initials}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium">{name}</div>
+            <div className="text-[11px] text-muted">{t('userMeta')}</div>
+          </div>
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              aria-label={t('logout')}
+              title={t('logout')}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition hover:bg-canvas hover:text-ink"
+            >
+              <LogOut size={15} aria-hidden />
+            </button>
+          </form>
+        </div>
       </div>
     </>
   );
@@ -125,6 +135,7 @@ function NavContent({
 
 export function Sidebar({ name }: { name: string }) {
   const pathname = usePathname();
+  const t = useTranslations('sidebar');
   const [open, setOpen] = useState(false);
 
   const initials = name
@@ -142,7 +153,7 @@ export function Sidebar({ name }: { name: string }) {
         <Brand />
         <button
           type="button"
-          aria-label="Меню"
+          aria-label={t('openMenu')}
           onClick={() => setOpen(true)}
           className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition hover:bg-canvas hover:text-ink"
         >
@@ -162,7 +173,7 @@ export function Sidebar({ name }: { name: string }) {
           <aside className="absolute left-0 top-0 flex h-full w-72 max-w-[80%] flex-col border-r border-hairline bg-surface py-5 shadow-card-hover">
             <button
               type="button"
-              aria-label="Закрыть меню"
+              aria-label={t('closeMenu')}
               onClick={() => setOpen(false)}
               className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-canvas hover:text-ink"
             >

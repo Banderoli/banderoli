@@ -1,0 +1,64 @@
+{
+  "sidebar": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "archive": "Archive",
+      "analytics": "Analytics",
+      "ai": "AI features",
+      "settings": "Settings",
+      "features": "Features"
+    },
+    "help": "Help",
+    "userMeta": "Pro · Tbilisi",
+    "logout": "Sign out",
+    "openMenu": "Menu",
+    "closeMenu": "Close menu",
+    "language": "Language"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "demoBanner": "Showing demo data: the API gateway is unavailable or there are no recipients yet.",
+    "activeShipments": "Active shipments",
+    "addOrder": "Add order",
+    "forecastSoon": "Soon this space will show an intelligent forecast of possible delays for your parcels, flights, warehouse congestion and other useful information. Helpful recommendations will appear here too. Banderoli.AI is already gathering the statistics needed for this."
+  },
+  "advisor": {
+    "okTitle": "All clear — no risks",
+    "okDetail": "You can order with peace of mind. Recipient {recipient} still has ≈ {rem} GEL (~${remUsd}) before the limit for the peak arrival day.",
+    "exceededTitle": "Attention: limit exceeded ({count})",
+    "exceededDetail": "The combined value on an arrival day is above 300 GEL — VAT and duty are likely on import. Details below.",
+    "riskTitle": "Risks by arrival dates ({count})",
+    "riskDetail": "Parcels may arrive together and exceed the 300 GEL limit. Check the dates below.",
+    "noticeExceeded": "Limit exceeded: {recipient} — “{parcel}” ({value} GEL of {limit}). VAT 18% and duty on the full value are likely — budget for the tax.",
+    "noticeSameDayExceeded": "Booked for one day ({date}): {recipient} — {list} = {value} GEL of {limit}. Arriving together exceeds the limit — better not to book for this date.",
+    "noticeSameDayWithin": "Booked for one day ({date}): {recipient} — {list} = {value} GEL of {limit}. Within the limit for now, but book new orders for this date carefully.",
+    "noticeNearDay": "Merge risk ({range}): {recipient} — {list} = {value} GEL of {limit}. The dates are close — if flights shift, parcels may arrive on the same day and exceed the limit.",
+    "limitFor": "Recipient limit",
+    "peakDay": "for the peak arrival day",
+    "valueBar": "Value · {limit} GEL",
+    "weightBar": "Weight · {limit} kg"
+  },
+  "parcels": {
+    "allParcels": "All parcels ({count})",
+    "allStores": "All stores",
+    "allCarriers": "All carriers",
+    "searchTrack": "Search by tracking code",
+    "notFound": "Nothing found",
+    "recipientAria": "Recipient",
+    "storeAria": "Store",
+    "carrierAria": "Carrier",
+    "trackAria": "Tracking code",
+    "pending": "Pending",
+    "pendingSub": "not shipped yet",
+    "inTransit": "In transit",
+    "inTransitSubOne": "for the recipient",
+    "inTransitSubAll": "for all recipients",
+    "inCustoms": "At customs",
+    "inCustomsSub": "awaiting clearance",
+    "totalValue": "Total value",
+    "totalValueSub": "active, in GEL"
+  },
+  "common": {
+    "kg": "kg"
+  }
+}

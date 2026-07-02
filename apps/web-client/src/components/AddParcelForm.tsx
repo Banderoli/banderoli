@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Plus, X } from 'lucide-react';
 import { PARCEL_CURRENCIES } from '@banderoli/contracts';
 import { createParcelAction, type ParcelFormState } from '@/app/parcel-actions';
@@ -27,6 +28,7 @@ export function AddParcelForm({
   carrierNames: string[];
   rates: Record<string, number>;
 }) {
+  const td = useTranslations('dashboard');
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createParcelAction, INITIAL);
   // formKey ремонтит редактор позиций, чтобы применились распознанные товары.
@@ -114,7 +116,7 @@ export function AddParcelForm({
         className="flex w-full items-center justify-center gap-1.5 rounded-md bg-brand px-3.5 py-2.5 text-sm font-medium text-white shadow-card transition hover:bg-brand-dark"
       >
         <Plus size={16} aria-hidden />
-        Добавить заказ
+        {td('addOrder')}
       </button>
 
       {open ? (

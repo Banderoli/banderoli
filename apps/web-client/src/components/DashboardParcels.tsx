@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { ParcelResponse } from '@banderoli/contracts';
 import type { RecipientOption } from '@/lib/mock-data';
 import { formatGel } from '@/lib/format';
@@ -22,6 +23,7 @@ export function DashboardParcels({
   storeNames: string[];
   carrierNames: string[];
 }) {
+  const t = useTranslations('parcels');
   const [recipient, setRecipient] = useState('');
   const [store, setStore] = useState('');
   const [carrier, setCarrier] = useState('');
@@ -82,10 +84,10 @@ export function DashboardParcels({
           <select
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
-            aria-label="Получатель"
+            aria-label={t('recipientAria')}
             className={fieldClass}
           >
-            <option value="">Все посылки ({active.length})</option>
+            <option value="">{t('allParcels', { count: active.length })}</option>
             {recipientOptions.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name} ({r.count})
@@ -96,8 +98,8 @@ export function DashboardParcels({
           <div className="hidden lg:block" />
         )}
 
-        <select value={store} onChange={(e) => setStore(e.target.value)} aria-label="Магазин" className={fieldClass}>
-          <option value="">Все магазины</option>
+        <select value={store} onChange={(e) => setStore(e.target.value)} aria-label={t('storeAria')} className={fieldClass}>
+          <option value="">{t('allStores')}</option>
           {storeOptions.map((s) => (
             <option key={s} value={s}>
               {s}
@@ -105,8 +107,8 @@ export function DashboardParcels({
           ))}
         </select>
 
-        <select value={carrier} onChange={(e) => setCarrier(e.target.value)} aria-label="Почтовая служба" className={fieldClass}>
-          <option value="">Все службы</option>
+        <select value={carrier} onChange={(e) => setCarrier(e.target.value)} aria-label={t('carrierAria')} className={fieldClass}>
+          <option value="">{t('allCarriers')}</option>
           {carrierOptions.map((c) => (
             <option key={c} value={c}>
               {c}
@@ -117,15 +119,15 @@ export function DashboardParcels({
         <input
           value={track}
           onChange={(e) => setTrack(e.target.value)}
-          placeholder="Поиск по трек-коду"
-          aria-label="Трек-код"
+          placeholder={t('searchTrack')}
+          aria-label={t('trackAria')}
           className={`${fieldClass} placeholder:text-brand-dark/50`}
         />
       </div>
 
       <div className="space-y-2">
         {filtered.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted">Ничего не найдено</p>
+          <p className="py-6 text-center text-sm text-muted">{t('notFound')}</p>
         ) : (
           filtered.map((p) => (
             <DashboardParcelCard
@@ -141,19 +143,19 @@ export function DashboardParcels({
 
       {/* Сводка по выбранному в фильтре получателю (или по всем посылкам) */}
       <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <MetricCard label="Ожидают" value={String(countByStatus('PENDING'))} sub="ещё не отправлены" />
+        <MetricCard label={t('pending')} value={String(countByStatus('PENDING'))} sub={t('pendingSub')} />
         <MetricCard
-          label="Всего в пути"
+          label={t('inTransit')}
           value={String(countByStatus('IN_TRANSIT'))}
-          sub={recipient ? 'у получателя' : 'у всех получателей'}
+          sub={recipient ? t('inTransitSubOne') : t('inTransitSubAll')}
         />
         <MetricCard
-          label="На таможне"
+          label={t('inCustoms')}
           value={String(countByStatus('IN_CUSTOMS'))}
-          sub="ожидает оформления"
+          sub={t('inCustomsSub')}
           accent="medium"
         />
-        <MetricCard label="Общая стоимость" value={formatGel(totalValueGel)} sub="активные, в лари" />
+        <MetricCard label={t('totalValue')} value={formatGel(totalValueGel)} sub={t('totalValueSub')} />
       </div>
     </div>
   );

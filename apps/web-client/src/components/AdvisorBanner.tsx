@@ -1,5 +1,6 @@
 import { AlertOctagon, AlertTriangle, CalendarClock, CheckCircle2, Info, PackageX, Receipt, Weight } from 'lucide-react';
 import type { ComponentType } from 'react';
+import { getFormatter, getLocale, getTranslations } from 'next-intl/server';
 import {
   EXPOSURE_ALERT_CODES,
   type ExposureResult,
@@ -7,7 +8,6 @@ import {
 } from '@banderoli/contracts';
 import type { RecipientOption } from '@/lib/mock-data';
 import { buildRiskNotices, type RiskNotice } from '@/lib/risk-notices';
-import { formatShortDate } from '@/lib/format';
 import { LimitBar } from './LimitBar';
 import { RecipientSwitcher } from './RecipientSwitcher';
 
@@ -43,31 +43,9 @@ function round(value: number): number {
   return Math.round(value);
 }
 
-function fmtDay(day: string): string {
-  return formatShortDate(`${day}T12:00:00`);
-}
-
-// Человекочитаемый текст уведомления — называем получателя и конкретные посылки.
-function noticeText(n: RiskNotice): string {
-  const val = `${n.valueGel} GEL из ${n.limitGel}`;
-  if (n.kind === 'exceeded') {
-    return `Лимит превышен: ${n.recipientName} — «${n.parcels[0]}» (${val}). Вероятен НДС 18% и пошлина на всю стоимость — заложите налог в бюджет.`;
-  }
-  if (n.kind === 'sameDay') {
-    const list = n.parcels.map((p) => `«${p}»`).join(' + ');
-    const head = `На один день (${fmtDay(n.days[0]!)}) выписаны: ${n.recipientName} — ${list} = ${val}.`;
-    return n.exceeded
-      ? `${head} Совместное прибытие превышает лимит — лучше не выписывать на эту дату.`
-      : `${head} Пока в пределах лимита, но новые заказы на эту дату оформляйте с осторожностью.`;
-  }
-  const list = n.parcels.map((p) => `«${p}»`).join(', ');
-  const range = `${fmtDay(n.days[0]!)}–${fmtDay(n.days[n.days.length - 1]!)}`;
-  return `Риск объединения (${range}): ${n.recipientName} — ${list} = ${val}. Даты рядом — при сдвиге рейсов посылки могут прийти в один день и превысить лимит.`;
-}
-
 // Единый блок «риск + лимит»: адресные уведомления по датам прибытия (кто и какие
 // посылки), плюс полосы лимита/веса по выбранному получателю.
-export function AdvisorBanner({
+export async function AdvisorBanner({
   usdRate,
   exposure,
   recipientName,
@@ -88,6 +66,15 @@ export function AdvisorBanner({
   parcels: ParcelResponse[];
   recipientNameById: Record<string, string>;
 }) {
+  const t = await getTranslations('advisor');
+  const tc = await getTranslations('common');
+  const format = await getFormatter();
+  const locale = await getLocale();
+  const [openQuote, closeQuote] = locale === 'en' ? ['“', '”'] : ['«', '»'];
+  const wrap = (label: string): string => `${openQuote}${label}${closeQuote}`;
+  const fmtDay = (day: string): string =>
+    format.dateTime(new Date(`${day}T12:00:00`), { day: 'numeric', month: 'short' });
+
   const notices = buildRiskNotices(parcels, recipientNameById, exposure.limitGel);
   const hasRed = notices.some((n) => n.tone === 'red');
   const tone: Tone = hasRed ? 'red' : notices.length > 0 ? 'amber' : 'green';
@@ -99,17 +86,43 @@ export function AdvisorBanner({
   let title: string;
   let detail: string;
   if (notices.length === 0) {
-    title = 'Всё в порядке — рисков нет';
-    detail = `Можно спокойно заказывать. У получателя ${recipientName} до лимита ещё ≈ ${remGel} GEL (~$${remUsd}) за пиковый день прибытия.`;
+    title = t('okTitle');
+    detail = t('okDetail', { recipient: recipientName, rem: remGel, remUsd });
+  } else if (hasRed) {
+    title = t('exceededTitle', { count: notices.filter((n) => n.tone === 'red').length });
+    detail = t('exceededDetail');
   } else {
-    const redCount = notices.filter((n) => n.tone === 'red').length;
-    title = hasRed
-      ? `Внимание: превышение лимита (${redCount})`
-      : `Есть риски по датам прибытия (${notices.length})`;
-    detail = hasRed
-      ? 'Совокупная стоимость на день прибытия выше 300 GEL — при ввозе вероятны НДС и пошлина. Детали ниже.'
-      : 'Посылки могут прийти вместе и превысить лимит 300 GEL. Проверьте даты ниже.';
+    title = t('riskTitle', { count: notices.length });
+    detail = t('riskDetail');
   }
+
+  const noticeText = (n: RiskNotice): string => {
+    if (n.kind === 'exceeded') {
+      return t('noticeExceeded', {
+        recipient: n.recipientName,
+        parcel: n.parcels[0] ?? '',
+        value: n.valueGel,
+        limit: n.limitGel,
+      });
+    }
+    if (n.kind === 'sameDay') {
+      const key = n.exceeded ? 'noticeSameDayExceeded' : 'noticeSameDayWithin';
+      return t(key, {
+        recipient: n.recipientName,
+        list: n.parcels.map(wrap).join(' + '),
+        value: n.valueGel,
+        limit: n.limitGel,
+        date: fmtDay(n.days[0]!),
+      });
+    }
+    return t('noticeNearDay', {
+      recipient: n.recipientName,
+      list: n.parcels.map(wrap).join(', '),
+      value: n.valueGel,
+      limit: n.limitGel,
+      range: `${fmtDay(n.days[0]!)}–${fmtDay(n.days[n.days.length - 1]!)}`,
+    });
+  };
 
   const extraAlerts = exposure.alerts.filter((a) => EXTRA_ALERT_CODES.includes(a.code));
 
@@ -150,31 +163,31 @@ export function AdvisorBanner({
       {/* Полосы лимита по выбранному получателю — за пиковый день прибытия */}
       <div className="mt-4 border-t border-hairline pt-3">
         <div className="mb-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
-          <span>Лимит получателя</span>
+          <span>{t('limitFor')}</span>
           {switcherRecipients.length > 1 ? (
             <RecipientSwitcher recipients={switcherRecipients} selectedId={selectedRecipientId} />
           ) : (
             <span className="font-medium text-ink">{recipientName}</span>
           )}
           <span>
-            — за пиковый день прибытия
+            — {t('peakDay')}
             {exposure.peakDay ? ` · ${fmtDay(exposure.peakDay)}` : ''}
           </span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <LimitBar
             icon={<Receipt size={13} aria-hidden />}
-            label={`Стоимость · ${exposure.limitGel} GEL`}
+            label={t('valueBar', { limit: exposure.limitGel })}
             used={exposure.totalValueGel}
             total={exposure.limitGel}
             valueText={`${round(exposure.totalValueGel)} / ${exposure.limitGel}`}
           />
           <LimitBar
             icon={<Weight size={13} aria-hidden />}
-            label={`Вес · ${weightLimitKg} кг`}
+            label={t('weightBar', { limit: weightLimitKg })}
             used={weightUsedKg}
             total={weightLimitKg}
-            valueText={`${weightUsedKg} / ${weightLimitKg} кг`}
+            valueText={`${weightUsedKg} / ${weightLimitKg} ${tc('kg')}`}
           />
         </div>
         {extraAlerts.length > 0 ? (
