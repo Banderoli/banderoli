@@ -72,7 +72,6 @@ export default async function DashboardPage({
         ) : null}
 
         <AdvisorBanner
-          recipients={recipientsExposure}
           usdRate={rates.USD}
           exposure={exposure}
           recipientName={data.recipientName}
